@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+Disallow: /welcome
+Disallow: /onboarding
+Disallow: /language
+Disallow: /notification-permission
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-otp
+Disallow: /profile
+Disallow: /settings
+Disallow: /wallet
+Disallow: /rewards
+Disallow: /referral
+Disallow: /favorites
+Disallow: /notifications
+Disallow: /search
+
+Sitemap: https://finance-rj.vercel.app/sitemap.xml
