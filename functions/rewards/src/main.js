@@ -5,7 +5,8 @@ const DB = process.env.APPWRITE_DATABASE_ID || 'newsfeed_main';
 const USERS = 'users';
 const EVENTS = 'reward_events';
 const WITHDRAWALS = 'withdrawals';
-const SECRET = process.env.REWARDS_SIGNING_SECRET || process.env.APPWRITE_FUNCTION_API_KEY || '';
+const NEWS = 'news';
+const SECRET = process.env.REWARDS_SIGNING_SECRET || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
 const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
 const MIN_WITHDRAWAL = Math.max(1, Number(process.env.MIN_WITHDRAWAL || 100));
@@ -100,6 +101,8 @@ export default async ({ req, res, log, error }) => {
     if (action === 'start-read') {
       const newsId = String(body.newsId || '');
       if (!newsId || newsId.length > 36) return res.json({ error: 'A valid article is required.' }, 400);
+      const article = await db.getDocument(DB, NEWS, newsId);
+      if (article.status !== 'approved') return res.json({ error: 'This article is not eligible for rewards.' }, 403);
       const now = Date.now();
       const payload = userId + ':' + newsId + ':' + now;
       const token = Buffer.from(JSON.stringify({ userId, newsId, startedAt: now, sig: sign(payload) })).toString('base64url');
@@ -112,6 +115,8 @@ export default async ({ req, res, log, error }) => {
       try { ticket = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')); } catch { return res.json({ error: 'Invalid reading session.' }, 400); }
       const payload = ticket.userId + ':' + ticket.newsId + ':' + ticket.startedAt;
       if (ticket.userId !== userId || !ticket.newsId || !safeEqual(ticket.sig, sign(payload))) return res.json({ error: 'Invalid reading session.' }, 400);
+      const article = await db.getDocument(DB, NEWS, ticket.newsId);
+      if (article.status !== 'approved') return res.json({ error: 'This article is not eligible for rewards.' }, 403);
       const elapsed = Date.now() - Number(ticket.startedAt);
       if (!Number.isFinite(elapsed) || elapsed < READ_SECONDS * 1000) return res.json({ error: 'Please finish the reading timer first.' }, 400);
       if (elapsed > 30 * 60 * 1000) return res.json({ error: 'Reading session expired. Start again.' }, 400);
