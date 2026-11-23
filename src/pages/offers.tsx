@@ -6,7 +6,7 @@ import { getBrand, getOffer, getOffers } from '../lib/api';
 import { safeUrl, shortDate } from '../lib/format';
 import { useAsync } from '../hooks/useAsync';
 import { Page } from '../components/layout';
-import { Async, Btn, Chips, EmptyState, ErrorState, SectionHeader, Skeleton } from '../components/ui';
+import { Async, Btn, Chips, EmptyState, ErrorState, Skeleton } from '../components/ui';
 import { OfferCard, SaveButton, Thumb } from '../components/cards';
 import { NotFound } from './utility';
 
