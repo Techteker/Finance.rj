@@ -1,4 +1,5 @@
-import { ExternalLink, Info, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, Info, Search, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { OFFER_CATEGORIES } from '../lib/menu';
 import { getBrand, getOffer, getOffers } from '../lib/api';
@@ -12,14 +13,19 @@ import { NotFound } from './utility';
 export function Offers() {
   const { cat = 'all' } = useParams();
   const idx = Math.max(0, OFFER_CATEGORIES.findIndex((c) => c.slug === cat));
+  const [q, setQ] = useState('');
   const state = useAsync(() => getOffers({ category: OFFER_CATEGORIES[idx].slug }), [idx]);
-  const shown = state.data;
+  const shown = state.data?.filter((o) => (o.title + ' ' + o.brandName).toLowerCase().includes(q.toLowerCase()));
   const navigate = useNavigate();
   const nav = (i: number) => navigate(i === 0 ? '/offers' : `/offers/category/${OFFER_CATEGORIES[i].slug}`);
   const categoryLabel = OFFER_CATEGORIES[idx]?.label ?? 'All offers';
 
   return (
     <Page title="Offers" big tab wide>
+      <label className="flex items-center gap-2.5 rounded-[14px] border border-line bg-surface px-3.5 py-3">
+        <Search size={20} className="text-slate" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search offers & brands" aria-label="Search offers" className="flex-1 bg-transparent text-sm outline-none" />
+      </label>
       <Chips items={OFFER_CATEGORIES.map((c) => c.label)} value={idx} onChange={nav} />
       <div className="flex items-center justify-between gap-3">
         <div>
