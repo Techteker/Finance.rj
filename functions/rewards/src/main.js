@@ -57,18 +57,53 @@ export default async ({ req, res, log, error }) => {
       }
     };
     const recordCredit = async (kind, label, coins, uniqueKey) => {
-      const w = await wallet();
+      await wallet();
       const id = eventId(uniqueKey);
-      try {
-        await db.createDocument(DB, EVENTS, id, { userId, kind, label, coins });
-      } catch (e) {
-        if (e.code === 409) return { duplicate: true, wallet: w };
-        throw e;
+
+      // Keep the idempotency event and wallet credit in one atomic transaction.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const tx = await db.createTransaction({ ttl: 60 });
+        try {
+          await db.createDocument({
+            databaseId: DB,
+            collectionId: EVENTS,
+            documentId: id,
+            data: { userId, kind, label, coins },
+            transactionId: tx.$id
+          });
+          await db.incrementDocumentAttribute({
+            databaseId: DB,
+            collectionId: USERS,
+            documentId: userId,
+            attribute: 'coins',
+            value: coins,
+            transactionId: tx.$id
+          });
+          await db.incrementDocumentAttribute({
+            databaseId: DB,
+            collectionId: USERS,
+            documentId: userId,
+            attribute: 'balance',
+            value: coins * COIN_RUPEES,
+            transactionId: tx.$id
+          });
+          await db.updateTransaction({ transactionId: tx.$id, commit: true });
+          return { duplicate: false, wallet: await wallet() };
+        } catch (e) {
+          try { await db.updateTransaction({ transactionId: tx.$id, rollback: true }); } catch {}
+          if (e.code === 409) {
+            try {
+              const existing = await db.getDocument(DB, EVENTS, id);
+              if (existing) return { duplicate: true, wallet: await wallet() };
+            } catch (lookupError) {
+              if (lookupError.code !== 404) throw lookupError;
+            }
+            if (attempt < 2) continue;
+          }
+          throw e;
+        }
       }
-      const nextCoins = Number(w.coins || 0) + coins;
-      const nextBalance = Number(w.balance || 0) + coins * COIN_RUPEES;
-      const updated = await db.updateDocument(DB, USERS, userId, { coins: nextCoins, balance: nextBalance });
-      return { duplicate: false, wallet: updated };
+      throw new Error('Could not safely apply reward. Please retry.');
     };
 
     if (action === 'events') {
@@ -132,10 +167,36 @@ export default async ({ req, res, log, error }) => {
       }
       const w = await wallet();
       if (Number(w.balance || 0) < amount) return res.json({ error: 'Insufficient wallet balance.' }, 400);
-      // Request only: no payment is sent by this function. Admin must review and pay manually.
-      const withdrawal = await db.createDocument(DB, WITHDRAWALS, ID.unique(), { userId, amount, upiId, status: 'pending' });
-      await db.updateDocument(DB, USERS, userId, { balance: Number(w.balance) - amount });
-      return res.json({ ok: true, withdrawalId: withdrawal.$id, status: 'pending' });
+
+      // Debit and withdrawal request commit together. The atomic decrement enforces
+      // a zero floor, so concurrent requests cannot spend the same balance twice.
+      const tx = await db.createTransaction({ ttl: 60 });
+      const withdrawalId = ID.unique();
+      try {
+        await db.decrementDocumentAttribute({
+          databaseId: DB,
+          collectionId: USERS,
+          documentId: userId,
+          attribute: 'balance',
+          value: amount,
+          min: 0,
+          transactionId: tx.$id
+        });
+        await db.createDocument({
+          databaseId: DB,
+          collectionId: WITHDRAWALS,
+          documentId: withdrawalId,
+          data: { userId, amount, upiId, status: 'pending' },
+          transactionId: tx.$id
+        });
+        await db.updateTransaction({ transactionId: tx.$id, commit: true });
+        // Request only: no payment is sent by this function. Admin must review and pay manually.
+        return res.json({ ok: true, withdrawalId, status: 'pending' });
+      } catch (e) {
+        try { await db.updateTransaction({ transactionId: tx.$id, rollback: true }); } catch {}
+        if (e.code === 409) return res.json({ error: 'Wallet changed during this request. Please refresh and try again.' }, 409);
+        throw e;
+      }
     }
 
     return res.json({ error: 'Unsupported rewards action.' }, 400);
