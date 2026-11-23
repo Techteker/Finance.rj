@@ -70,6 +70,15 @@ export default async ({ req, res, log, error }) => {
       return { duplicate: false, wallet: updated };
     };
 
+    if (action === 'events') {
+      const result = await db.listDocuments(DB, EVENTS, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
+      return res.json({ documents: result.documents });
+    }
+    if (action === 'withdrawals') {
+      const result = await db.listDocuments(DB, WITHDRAWALS, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
+      return res.json({ documents: result.documents });
+    }
+
     if (action === 'wallet') {
       const w = await wallet();
       return res.json({ coins: w.coins || 0, balance: w.balance || 0, streak: w.streak || 0, lastCheckIn: w.lastCheckIn || null, referralCode: w.referralCode || null });
