@@ -22,14 +22,6 @@ export function Offers() {
 
   return (
     <Page title="Offers" big tab wide>
-      <div className="space-y-1">
-        <h2 className="text-lg font-bold">Discover offers</h2>
-        <p className="text-xs text-slate">Handpicked deals, vouchers and rewards from popular brands.</p>
-      </div>
-      <label className="flex items-center gap-2.5 rounded-[14px] border border-line bg-surface px-3.5 py-3">
-        <Search size={20} className="text-slate" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search offers & brands" aria-label="Search offers" className="flex-1 bg-transparent text-sm outline-none" />
-      </label>
       <Chips items={OFFER_CATEGORIES.map((c) => c.label)} value={idx} onChange={nav} />
       <div className="flex items-center justify-between gap-3">
         <div>
