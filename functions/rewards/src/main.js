@@ -39,7 +39,7 @@ export default async ({ req, res, log, error }) => {
     const adminClient = new Client()
       .setEndpoint(process.env.APPWRITE_ENDPOINT)
       .setProject(process.env.APPWRITE_PROJECT_ID)
-      .setKey(process.env.APPWRITE_API_KEY);
+      .setKey(process.env.APPWRITE_FUNCTION_API_KEY);
     const db = new Databases(adminClient);
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const action = body.action;
