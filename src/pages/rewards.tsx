@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Coins, Flame } from 'lucide-react';
 import { getNews, getRewardEvents, getWallet, getWithdrawals, rewardsAction } from '../lib/api';
@@ -57,10 +57,36 @@ export const ReadEarn = () => (
 function ReadEarnBody() {
   const state = useAsync(() => getNews({ limit: 5 }), []);
   const toast = useToast();
-  const claim = async (id: string) => { try { await rewardsAction('read', { newsId: id }); toast.show('Coins added'); } catch (e) { toast.show((e as Error).message); } };
+  const [sessions, setSessions] = useState<Record<string, { token: string; seconds: number }>>({});
+  const [remaining, setRemaining] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const timer = window.setInterval(() => setRemaining((current) => {
+      const next = { ...current };
+      Object.keys(next).forEach((id) => { if (next[id] > 0) next[id] -= 1; });
+      return next;
+    }), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const start = async (id: string) => {
+    try {
+      const session = await rewardsAction('start-read', { newsId: id }) as { token: string; seconds: number };
+      setSessions((s) => ({ ...s, [id]: session }));
+      setRemaining((s) => ({ ...s, [id]: session.seconds }));
+    } catch (e) { toast.show((e as Error).message); }
+  };
+  const claim = async (id: string) => {
+    try {
+      const session = sessions[id];
+      if (!session || (remaining[id] ?? session.seconds) > 0) return;
+      const result = await rewardsAction('read', { token: session.token }) as { duplicate?: boolean };
+      toast.show(result.duplicate ? 'This article was already rewarded.' : 'Coins added');
+      setSessions((s) => { const n = { ...s }; delete n[id]; return n; });
+      setRemaining((s) => { const n = { ...s }; delete n[id]; return n; });
+    } catch (e) { toast.show((e as Error).message); }
+  };
   return (
     <Async state={state} empty={<EmptyState title="No stories to read right now" />}>
-      {(items) => <><p className="rounded-card bg-mint p-4 text-sm font-semibold text-pri-dark">Read a story fully to earn coins. Each story pays once.</p>{items.map((n) => <div key={n.$id} className="space-y-1.5"><NewsCard n={n} /><button onClick={() => claim(n.$id)} className="text-xs font-semibold text-pri-dark">I have read this: claim coins</button></div>)}</>}
+      {(items) => <><p className="rounded-card bg-mint p-4 text-sm font-semibold text-pri-dark">Read for at least 20 seconds. Each approved article can earn once.</p>{items.map((n) => <div key={n.$id} className="space-y-1.5"><NewsCard n={n} />{!sessions[n.$id] ? <button onClick={() => start(n.$id)} className="text-xs font-semibold text-pri-dark">Start 20-second read</button> : <button disabled={(remaining[n.$id] ?? 0) > 0} onClick={() => claim(n.$id)} className="text-xs font-semibold text-pri-dark disabled:opacity-50">{(remaining[n.$id] ?? 0) > 0 ? 'Read timer: ' + remaining[n.$id] + 's' : 'Claim coins'}</button>}</div>)}</>}
     </Async>
   );
 }
