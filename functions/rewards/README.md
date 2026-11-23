@@ -22,3 +22,6 @@ Actions: `wallet`, `check-in`, `start-read`, `read` (signed ticket; minimum read
 
 ## Important deployment/schema requirements
 The existing `users`, `reward_events`, and `withdrawals` collections must exist. Keep their collection permissions closed to public/client writes. The function uses its server API key for reads and writes. The app's wallet UI must fetch balances through the `wallet` action rather than directly reading the private `users` collection.
+
+
+Reward credits and withdrawal debits use Appwrite database transactions. The reward event and wallet update commit together; withdrawal balance debit and pending request commit together. Do not downgrade `node-appwrite` below 32.x without replacing these transaction calls.
