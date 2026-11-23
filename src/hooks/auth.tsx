@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Models } from 'appwrite';
-import { account, ID, isConfigured } from '../lib/appwrite';
+import { account, databases, DB, ID, isConfigured, Permission, Role } from '../lib/appwrite';
 
 type User = Models.User<Models.Preferences>;
 interface AuthCtx {
@@ -19,12 +19,45 @@ interface AuthCtx {
 const Ctx = createContext<AuthCtx>(null as unknown as AuthCtx);
 export const useAuth = () => useContext(Ctx);
 
+async function ensureWallet(user: User) {
+  try {
+    await databases.getDocument(DB, 'users', user.$id);
+    return;
+  } catch {
+    // A missing wallet is normal for accounts created before wallet provisioning.
+  }
+  const referralCode = 'FW' + user.$id.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
+  try {
+    await databases.createDocument(DB, 'users', user.$id, {
+      name: user.name || 'FORWORD User',
+      email: user.email || '',
+      coins: 0,
+      balance: 0,
+      streak: 0,
+      referralCode,
+    }, [
+      Permission.read(Role.user(user.$id)),
+      Permission.update(Role.user(user.$id)),
+      Permission.delete(Role.user(user.$id)),
+    ]);
+  } catch {
+    // If another tab created it at the same time, the existing wallet is valid.
+    await databases.getDocument(DB, 'users', user.$id);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    try { setUser(await account.get()); } catch { setUser(null); }
+    try {
+      const current = await account.get();
+      setUser(current);
+      await ensureWallet(current);
+    } catch {
+      setUser(null);
+    }
   }, []);
   useEffect(() => { if (!isConfigured) { setLoading(false); return; } refresh().finally(() => setLoading(false)); }, [refresh]);
 
