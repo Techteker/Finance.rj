@@ -20,12 +20,12 @@ APPWRITE_ENDPOINT=... APPWRITE_PROJECT_ID=... APPWRITE_API_KEY=... npm run setup
 ```
 Run it on your machine only. Never put the API key in frontend code or `.env` files that are deployed.
 
-Collections used by the app: `news, categories, brands, offers, products, product_reviews, product_comparisons, favorites, notifications, reading_history, calculators_history, users, rss_sources, rss_logs, admin_users`.
+Collections used by the app: `news, categories, brands, offers, products, product_reviews, product_comparisons, favorites, notifications, reading_history, calculators_history, users, admin_users`.
 Added because features need them: `news_pending` (admin-only staging), `reports`, `contact_messages`, `reward_events`, `withdrawals`.
 If your existing schema uses different attribute names, change them in one place: `src/types.ts` and `src/lib/api.ts`.
 
 ### Important: approved-only content
-Appwrite collection permissions cannot filter by field value. The app queries `status = "approved"`, but anyone calling the API directly could read unapproved documents in a public-read collection. To make "approved only" real, keep pending/rejected RSS items in `news_pending` (admin-only) and have your admin flow create the public `news` document only on approval.
+Appwrite collection permissions cannot filter by field value. The app queries `status = "approved"`, but anyone calling the API directly could read unapproved documents in a public-read collection. To make "approved only" real, keep pending/rejected editorial items in `news_pending` (admin-only) and create the public `news` document only after approval.
 
 ### Data conventions
 - News, products and offers store denormalised names/logos (`categoryName`, `bankName`, `brandName`, ...) so lists load without extra API calls.
