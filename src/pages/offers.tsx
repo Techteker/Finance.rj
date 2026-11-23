@@ -39,7 +39,7 @@ export function Offers() {
         {shown && <span className="rounded-full bg-mint px-2.5 py-1 text-[11px] font-semibold text-pri-dark">{shown.length} offers</span>}
       </div>
       <Async state={{ ...state, data: shown }} empty={<EmptyState icon="tag" title="No offers right now" text="Fresh offers will appear here. Check back soon." action={<Btn to="/category">Browse categories</Btn>} />}>
-        {(items) => <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">{items.map((o) => <OfferCard key={o.$id} o={o} />)}</div>}
+        {(items) => <div className="grid grid-cols-2 gap-3">{items.map((o) => <OfferCard key={o.$id} o={o} />)}</div>}
       </Async>
     </Page>
   );
