@@ -6,8 +6,8 @@ Runtime: Node.js 22. Entrypoint: `src/main.js`.
 - `APPWRITE_ENDPOINT`
 - `APPWRITE_PROJECT_ID`
 - `APPWRITE_DATABASE_ID=newsfeed_main`
-- `APPWRITE_API_KEY` (secret; users.read, databases.read, documents.read/write)
 - `REWARDS_SIGNING_SECRET` (long random secret, at least 32 characters)
+- `APPWRITE_FUNCTION_API_KEY` is injected by the Appwrite Functions runtime; the function uses it for server-side database access. Do not add it as a Vite variable.
 
 Optional configuration:
 - `CHECKIN_COINS=5`
@@ -16,7 +16,7 @@ Optional configuration:
 - `COIN_RUPEES=0.01`
 - `MIN_WITHDRAWAL=100`
 
-The function verifies the caller's Appwrite user JWT before using its server API key. It owns all balance mutations. Never expose the API key or signing secret in Vite variables.
+The function verifies the caller's Appwrite user JWT before using its server API key. Configure the function's built-in API key scopes for users.read and the required database/document read-write operations. It owns all balance mutations. Never expose the API key or signing secret in Vite variables.
 
 Actions: `wallet`, `check-in`, `start-read`, `read` (signed ticket; minimum reading duration enforced), and `withdraw`. Withdrawals are created as `pending` requests only; this function does not transfer money. A trusted admin must review and pay them.
 
