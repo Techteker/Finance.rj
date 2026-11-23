@@ -44,8 +44,6 @@ const SCHEMA = {
   withdrawals: { perms: ADMIN, doc: true, attrs: { userId: 's*', amount: 'f', upiId: 's', status: 's' }, idx: [['user', ['userId']]] },
   reports: { perms: ANY_CREATE, doc: false, attrs: { newsId: 's', reason: 's', userId: 's' }, idx: [] },
   contact_messages: { perms: ANY_CREATE, doc: false, attrs: { name: 's', email: 's', message: 't' }, idx: [] },
-  rss_sources: { perms: ADMIN, doc: false, attrs: { name: 's', url: 'u', enabled: 'b' }, idx: [] },
-  rss_logs: { perms: ADMIN, doc: false, attrs: { sourceId: 's', message: 's:500', level: 's' }, idx: [] },
   admin_users: { perms: ADMIN, doc: false, attrs: { userId: 's*', role: 's' }, idx: [['user', ['userId']]] },
 };
 
