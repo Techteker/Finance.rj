@@ -109,9 +109,9 @@ export const saveCalc = (userId: string, slug: string, inputs: unknown, result: 
 
 /* ---------- Rewards (balances are changed only by a server-side function) ---------- */
 export const getWallet = async (_userId: string) => await rewardsAction('wallet') as unknown as Wallet;
-export const getRewardEvents = (userId: string) => list<RewardEvent>(COL.rewardEvents, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
-export const getWithdrawals = (userId: string) => list<Withdrawal>(COL.withdrawals, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
-export async function rewardsAction(action: 'wallet' | 'check-in' | 'start-read' | 'read' | 'withdraw', payload: Record<string, unknown> = {}) {
+export const getRewardEvents = async (_userId: string) => (await rewardsAction('events') as { documents: RewardEvent[] }).documents;
+export const getWithdrawals = async (_userId: string) => (await rewardsAction('withdrawals') as { documents: Withdrawal[] }).documents;
+export async function rewardsAction(action: 'wallet' | 'events' | 'withdrawals' | 'check-in' | 'start-read' | 'read' | 'withdraw', payload: Record<string, unknown> = {}) {
   if (!REWARDS_FN) throw new Error('Rewards service is not configured yet.');
   const ex = await functions.createExecution(REWARDS_FN, JSON.stringify({ action, ...payload }), false);
   const body = ex.responseBody ? JSON.parse(ex.responseBody) : {};
