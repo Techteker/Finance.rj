@@ -88,7 +88,7 @@ export function OfferDetail() {
         </section>
       ) : null}
 
-      <div className="sticky bottom-20 z-20 rounded-2xl border border-line bg-white p-3 shadow-card">
+      <div className="sticky bottom-16 z-20 rounded-2xl border border-line bg-white p-3 shadow-card">
         {url ? (
           <Btn href={url}>Claim Offer <ExternalLink size={16} /></Btn>
         ) : (
