@@ -11,7 +11,7 @@ const NEWS = 'news';
 const SECRET = process.env.REWARDS_SIGNING_SECRET || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
 const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
-const MIN_WITHDRAWAL = Math.max(1, Number(process.env.MIN_WITHDRAWAL || 100));
+const MIN_WITHDRAWAL = Math.max(500, Number(process.env.MIN_WITHDRAWAL || 500));
 const COIN_RUPEES = Math.max(0.0001, Number(process.env.COIN_RUPEES || 0.01));
 const READ_SECONDS = Math.max(20, Number(process.env.READ_SECONDS || 20));
 
