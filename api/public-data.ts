@@ -1,9 +1,7 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
-
 const PUBLIC_COLLECTIONS = new Set(['news', 'categories', 'offers', 'products', 'brands']);
 const APPROVED_COLLECTIONS = new Set(['news', 'offers', 'products', 'brands']);
 
-export default async function handler(req: IncomingMessage & { method?: string; query?: Record<string, string | string[] | undefined> }, res: ServerResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     res.statusCode = 405;
