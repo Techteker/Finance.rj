@@ -127,14 +127,13 @@ export async function rewardsAction(action: 'wallet' | 'events' | 'referrals' | 
   // user JWT. Mint a short-lived JWT from the authenticated Account session and
   // forward it in a dedicated header; the function verifies it with Account.get().
   const jwt = await account.createJWT();
-  const ex = await functions.createExecution(
-    REWARDS_FN,
-    JSON.stringify({ action, ...payload }),
-    false,
-    '/',
-    'post',
-    { 'x-forward-user-jwt': jwt.jwt }
-  );
+  const ex = await functions.createExecution({
+    functionId: REWARDS_FN,
+    body: JSON.stringify({ action, ...payload }),
+    async: false,
+    xpath: '/',
+    headers: { 'x-forward-user-jwt': jwt.jwt }
+  });
   const body = ex.responseBody ? JSON.parse(ex.responseBody) : {};
   if (ex.responseStatusCode >= 400) throw new Error(body.error || 'Could not complete this action.');
   return body as Record<string, unknown>;
