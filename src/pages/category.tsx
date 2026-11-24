@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { CATEGORIES, findCat, type Cat } from '../lib/menu';
+import type { Cat } from '../lib/menu';
 import { CALCS } from '../lib/calc';
-import { getNews, getNewsCategories, getProducts } from '../lib/api';
+import { getNews, getNewsCategories, getProductMenu, getProducts } from '../lib/api';
 import { useAsync } from '../hooks/useAsync';
 import { Page } from '../components/layout';
 import { Icon, IconBadge } from '../components/Icon';
-import { Async, Chips, EmptyState, ListRow, SectionHeader } from '../components/ui';
+import { Async, Chips, EmptyState, ErrorState, ListRow, SectionHeader, Skeleton } from '../components/ui';
 import { NewsCard, ProductCard } from '../components/cards';
 import { NotFound } from './utility';
 import { SearchBox } from './search';
@@ -17,24 +17,26 @@ function Tile({ to, icon, label }: { to: string; icon: string; label: string }) 
 }
 
 export function CategoryHub() {
+  const state = useAsync(getProductMenu, []);
   return (
     <Page title="Category" big tab wide>
       <SearchBox />
       <SectionHeader title="Explore all categories" />
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-        {CATEGORIES.map((c) => <Tile key={c.slug} to={`/category/${c.slug}`} icon={c.icon} label={c.label} />)}
-        <Tile to="/calculators" icon="calc" label="Calculators" />
-      </div>
+      <Async state={state} empty={<EmptyState title="Categories are being prepared" text="Please check back shortly." />}>
+        {(items) => <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">{items.map((c) => <Tile key={c.slug} to={`/category/${c.slug}`} icon={c.icon} label={c.label} />)}<Tile to="/calculators" icon="calc" label="Calculators" /></div>}
+      </Async>
       <SectionHeader title="News categories" to="/category/news" />
     </Page>
   );
 }
 
 export function AllCategories() {
+  const state = useAsync(getProductMenu, []);
   return (
     <Page title="All Categories" back tab>
-      {[...CATEGORIES.map((c) => ({ to: `/category/${c.slug}`, icon: c.icon, label: c.label, sub: c.desc })), { to: '/calculators', icon: 'calc', label: 'Calculators', sub: 'EMI, SIP, FD, RD, tax and more.' }]
-        .map((c) => <ListRow key={c.to} to={c.to} icon={c.icon} title={c.label} sub={c.sub} />)}
+      <Async state={state} empty={<EmptyState title="No categories yet" />}>
+        {(items) => <div>{items.map((c) => <ListRow key={c.slug} to={`/category/${c.slug}`} icon={c.icon} title={c.label} sub={c.desc} />)}<ListRow to="/calculators" icon="calc" title="Calculators" sub="EMI, SIP, FD, RD, tax and more." /></div>}
+      </Async>
     </Page>
   );
 }
@@ -52,9 +54,12 @@ export function NewsCategoriesGrid() {
 
 export function CategoryLanding() {
   const { slug } = useParams();
-  const cat = findCat(slug);
+  const state = useAsync(getProductMenu, []);
   const nav = useNavigate();
   const [tab, setTab] = useState(0);
+  if (state.loading) return <Page title="Category" back><Skeleton rows={3} /></Page>;
+  if (state.error) return <Page title="Category" back><ErrorState text={state.error} onRetry={state.reload} /></Page>;
+  const cat = state.data?.find((item) => item.slug === slug);
   if (!cat) return <NotFound />;
   return <Landing key={cat.slug} cat={cat} tab={tab} setTab={setTab} go={(s: string) => nav(`/${cat.slug}/${s}`)} />;
 }
@@ -65,14 +70,14 @@ function Landing({ cat, tab, setTab, go }: { cat: Cat; tab: number; setTab: (i: 
   return (
     <Page title={cat.label} back wide right={<Link to="/search" className="rounded-full bg-surface p-2 text-sm font-semibold">Search</Link>}>
       <div className="flex items-center gap-3 rounded-card bg-mint p-4"><IconBadge name={cat.icon} size={52} /><div><h2 className="text-lg font-bold">{cat.label}</h2><p className="text-xs text-slate">{cat.desc}</p></div></div>
-      <Chips items={cat.subs.map((s) => s.label)} value={tab} onChange={(i) => { setTab(i); go(cat.subs[i].slug); }} />
+      {cat.subs.length > 0 && <Chips items={cat.subs.map((s) => s.label)} value={Math.min(tab, cat.subs.length - 1)} onChange={(i) => { setTab(i); go(cat.subs[i].slug); }} />}
       {cat.mode === 'products' && (
         <>
-          <SectionHeader title="Featured products" to={`/${cat.slug}/${cat.subs[0].slug}`} />
+          <SectionHeader title="Featured products" to={cat.subs[0] ? `/${cat.slug}/${cat.subs[0].slug}` : `/category/${cat.slug}`} />
           <Async state={{ ...featured, data: featured.data?.slice(0, 3) }} empty={<p className="text-sm text-slate">Verified products will appear here once they are approved.</p>} skeleton={2}>
             {(items) => <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">{items.map((p) => <ProductCard key={p.$id} p={p} />)}</div>}
           </Async>
-          <Link to={`/${cat.slug}/${cat.subs.find((s) => s.mode === 'compare')?.slug ?? cat.subs[0].slug}`} className="flex items-center gap-2 rounded-card bg-surface p-3.5 text-sm font-semibold"><Icon name="bars" className="text-pri-dark" />Compare products side by side</Link>
+          {(cat.subs.find((s) => s.mode === 'compare') || cat.subs[0]) && <Link to={`/${cat.slug}/${cat.subs.find((s) => s.mode === 'compare')?.slug ?? cat.subs[0].slug}`} className="flex items-center gap-2 rounded-card bg-surface p-3.5 text-sm font-semibold"><Icon name="bars" className="text-pri-dark" />Compare products side by side</Link>}
         </>
       )}
       <SectionHeader title="Guides and relevant news" />
@@ -83,14 +88,17 @@ function Landing({ cat, tab, setTab, go }: { cat: Cat; tab: number; setTab: (i: 
 
 export function MenuDrawer() {
   const [open, setOpen] = useState<string | null>('credit-cards');
+  const state = useAsync(getProductMenu, []);
   return (
     <Page title="Menu" back tab>
-      {CATEGORIES.map((c) => (
-        <div key={c.slug}>
-          <ListRow icon={c.icon} title={c.label} onClick={() => setOpen(open === c.slug ? null : c.slug)} right={open === c.slug ? <ChevronUp size={18} /> : <ChevronDown size={18} />} />
-          {open === c.slug && <ul className="py-1 pl-14">{c.subs.map((s) => <li key={s.slug}><Link to={`/${c.slug}/${s.slug}`} className="block py-2 text-sm">{s.label}</Link></li>)}</ul>}
-        </div>
-      ))}
+      <Async state={state} empty={<EmptyState title="No categories yet" />}>
+        {(items) => <div>{items.map((c) => (
+          <div key={c.slug}>
+            <ListRow icon={c.icon} title={c.label} onClick={() => setOpen(open === c.slug ? null : c.slug)} right={open === c.slug ? <ChevronUp size={18} /> : <ChevronDown size={18} />} />
+            {open === c.slug && <ul className="py-1 pl-14">{c.subs.map((s) => <li key={s.slug}><Link to={`/${c.slug}/${s.slug}`} className="block py-2 text-sm">{s.label}</Link></li>)}</ul>}
+          </div>
+        ))}</div>}
+      </Async>
       <ListRow icon="calc" title="Financial Tools" to="/calculators" />
     </Page>
   );
