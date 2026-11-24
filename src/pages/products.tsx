@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Check, SlidersHorizontal } from 'lucide-react';
-import { getProductMenu } from '../lib/api';
 import { getNews, getProductBySlug, getProductMenu, getProducts, getProductsByIds } from '../lib/api';
 import { parseFacts, safeUrl, shortDate } from '../lib/format';
 import { useAsync } from '../hooks/useAsync';
