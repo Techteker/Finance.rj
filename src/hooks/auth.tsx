@@ -29,8 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const current = await account.get();
       setUser(current);
       // Profile creation/synchronization is server-owned and never updates wallet fields.
-      try { await rewardsAction('sync-profile'); }
-      catch (e) { console.warn('[FORWORD profile sync] Pending:', (e as Error)?.message || e); }
+      // Keep referral attribution locally until the backend confirms it has been recorded.
+      try {
+        const pendingCode = localStorage.getItem('forword:pending-referral-code') || '';
+        await rewardsAction('sync-profile', pendingCode ? { referralCode: pendingCode } : {});
+        if (pendingCode) localStorage.removeItem('forword:pending-referral-code');
+      } catch (e) {
+        console.warn('[FORWORD profile sync] Pending:', (e as Error)?.message || e);
+      }
     } catch {
       setUser(null);
     }
@@ -43,11 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register: async (name, email, password, referralCode) => {
       await account.create(ID.unique(), email, password, name);
       await account.createEmailPasswordSession(email, password);
-      await refresh();
       if (referralCode?.trim()) {
-        try { await rewardsAction('sync-profile', { referralCode: referralCode.trim().toUpperCase() }); }
-        catch (e) { console.warn('[FORWORD referral attribution] Pending:', (e as Error)?.message || e); }
+        try { localStorage.setItem('forword:pending-referral-code', referralCode.trim().toUpperCase()); } catch {}
       }
+      await refresh();
     },
     logout: async () => { await account.deleteSession('current'); setUser(null); },
     sendOtp: async (phone) => { const t = await account.createPhoneToken(ID.unique(), phone); sessionStorage.setItem('forword:otp-user', t.userId); sessionStorage.setItem('forword:otp-phone', phone); },
