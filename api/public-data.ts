@@ -1,6 +1,8 @@
 const PUBLIC_COLLECTIONS = new Set(['news', 'categories', 'offers', 'products', 'brands']);
 const APPROVED_COLLECTIONS = new Set(['news', 'offers', 'products', 'brands']);
 
+type RuntimeEnv = { process?: { env?: Record<string, string | undefined> } };
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -44,9 +46,11 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const endpoint = (process.env.VITE_APPWRITE_ENDPOINT || process.env.APPWRITE_ENDPOINT || '').replace(/\/$/, '');
-  const projectId = process.env.VITE_APPWRITE_PROJECT_ID || process.env.APPWRITE_PROJECT_ID;
-  const databaseId = process.env.VITE_APPWRITE_DATABASE_ID || 'newsfeed_main';
+  // Read server environment without requiring Node.js type definitions in the Vite app.
+  const env = (globalThis as typeof globalThis & RuntimeEnv).process?.env ?? {};
+  const endpoint = (env.VITE_APPWRITE_ENDPOINT || env.APPWRITE_ENDPOINT || '').replace(/\/$/, '');
+  const projectId = env.VITE_APPWRITE_PROJECT_ID || env.APPWRITE_PROJECT_ID;
+  const databaseId = env.VITE_APPWRITE_DATABASE_ID || 'newsfeed_main';
   if (!endpoint || !projectId) {
     res.statusCode = 503;
     res.end(JSON.stringify({ error: 'Public data service is not configured' }));
