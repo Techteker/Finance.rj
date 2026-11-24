@@ -101,7 +101,12 @@ export const addFavorite = async (userId: string, f: { itemType: FavType; itemId
     Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId)),
   ]) as unknown as Favorite;
 };
-export const removeFavorite = (docId: string) => databases.deleteDocument(DB, COL.favorites, docId);
+export const removeFavorite = async (docId: string) => {
+  const current = await account.get();
+  const favorite = await databases.getDocument(DB, COL.favorites, docId);
+  if (favorite.userId !== current.$id) throw new Error('You can only remove your own saved item.');
+  return databases.deleteDocument(DB, COL.favorites, docId);
+};
 
 /* ---------- History, notifications, reports, messages ---------- */
 export const getHistory = async (userId: string) => {
@@ -123,10 +128,23 @@ export const getNotifications = async (userId?: string) => {
   const audience = userId ? Query.or([Query.equal('userId', userId), Query.isNull('userId')]) : Query.isNull('userId');
   return list<AppNotification>(COL.notifications, [audience, Query.orderDesc('$createdAt'), Query.limit(40)]);
 };
-export const reportArticle = (newsId: string, reason: string, userId?: string) =>
-  databases.createDocument(DB, COL.reports, ID.unique(), { newsId, reason, userId: userId ?? '' }, [Permission.create(Role.any())]);
-export const sendMessage = (m: { name: string; email: string; message: string }) =>
-  databases.createDocument(DB, COL.messages, ID.unique(), m, [Permission.create(Role.any())]);
+export const reportArticle = async (newsId: string, reason: string, _userId?: string) => {
+  const id = String(newsId || '').trim();
+  const detail = String(reason || '').trim();
+  if (!id || id.length > 36 || detail.length < 5 || detail.length > 1000) throw new Error('Enter a valid article and a report reason (5–1000 characters).');
+  let userId = '';
+  try { userId = (await account.get()).$id; } catch { /* guest reports are allowed */ }
+  return databases.createDocument(DB, COL.reports, ID.unique(), { newsId: id, reason: detail, userId }, [Permission.create(Role.any())]);
+};
+export const sendMessage = (m: { name: string; email: string; message: string }) => {
+  const name = String(m.name || '').trim();
+  const email = String(m.email || '').trim().toLowerCase();
+  const message = String(m.message || '').trim();
+  if (name.length < 2 || name.length > 100 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254 || message.length < 10 || message.length > 5000) {
+    throw new Error('Enter a valid name, email and message (10–5000 characters).');
+  }
+  return databases.createDocument(DB, COL.messages, ID.unique(), { name, email, message }, [Permission.create(Role.any())]);
+};
 export const saveCalc = async (userId: string, slug: string, inputs: unknown, result: unknown) => {
   await requireOwner(userId);
   return databases.createDocument(DB, COL.calcHistory, ID.unique(), { userId, slug, inputs: JSON.stringify(inputs), result: JSON.stringify(result) }, [
