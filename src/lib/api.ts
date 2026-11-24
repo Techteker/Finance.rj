@@ -1,4 +1,4 @@
-import { COL, DB, ID, Permission, Query, Role, databases, functions, REWARDS_FN } from './appwrite';
+import { account, COL, DB, ID, Permission, Query, Role, databases, functions, REWARDS_FN } from './appwrite';
 import type { AppNotification, Brand, Category, FavType, Favorite, HistoryItem, News, Offer, Product, RewardEvent, Wallet, Withdrawal } from '../types';
 
 async function list<T>(col: string, q: string[] = []): Promise<T[]> {
@@ -113,6 +113,12 @@ export const getRewardEvents = async (_userId: string) => (await rewardsAction('
 export const getWithdrawals = async (_userId: string) => (await rewardsAction('withdrawals') as { documents: Withdrawal[] }).documents;
 export async function rewardsAction(action: 'wallet' | 'events' | 'withdrawals' | 'check-in' | 'start-read' | 'read' | 'withdraw', payload: Record<string, unknown> = {}) {
   if (!REWARDS_FN) throw new Error('Rewards service is not configured yet.');
+  // Avoid anonymous executions: Appwrite forwards the active session to the function.
+  try {
+    await account.get();
+  } catch {
+    throw new Error('Please sign in to access rewards and your wallet.');
+  }
   const ex = await functions.createExecution(REWARDS_FN, JSON.stringify({ action, ...payload }), false);
   const body = ex.responseBody ? JSON.parse(ex.responseBody) : {};
   if (ex.responseStatusCode >= 400) throw new Error(body.error || 'Could not complete this action.');
