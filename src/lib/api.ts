@@ -132,7 +132,7 @@ export async function rewardsAction(action: 'wallet' | 'events' | 'referrals' | 
     JSON.stringify({ action, ...payload }),
     false,
     '/',
-    'POST',
+    'post',
     { 'x-forward-user-jwt': jwt.jwt }
   );
   const body = ex.responseBody ? JSON.parse(ex.responseBody) : {};
