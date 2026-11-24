@@ -1,12 +1,13 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Models } from 'appwrite';
 import { account, ID, isConfigured } from '../lib/appwrite';
+import { rewardsAction } from '../lib/api';
 
 type User = Models.User<Models.Preferences>;
 interface AuthCtx {
   user: User | null; loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, referralCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   sendOtp: (phone: string) => Promise<void>;
   verifyOtp: (code: string) => Promise<void>;
@@ -27,6 +28,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const current = await account.get();
       setUser(current);
+      // Profile creation/synchronization is server-owned and never updates wallet fields.
+      try { await rewardsAction('sync-profile'); }
+      catch (e) { console.warn('[FORWORD profile sync] Pending:', (e as Error)?.message || e); }
     } catch {
       setUser(null);
     }
@@ -36,10 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthCtx>(() => ({
     user, loading,
     login: async (email, password) => { await account.createEmailPasswordSession(email, password); await refresh(); },
-    register: async (name, email, password) => {
+    register: async (name, email, password, referralCode) => {
       await account.create(ID.unique(), email, password, name);
       await account.createEmailPasswordSession(email, password);
       await refresh();
+      if (referralCode?.trim()) {
+        try { await rewardsAction('sync-profile', { referralCode: referralCode.trim().toUpperCase() }); }
+        catch (e) { console.warn('[FORWORD referral attribution] Pending:', (e as Error)?.message || e); }
+      }
     },
     logout: async () => { await account.deleteSession('current'); setUser(null); },
     sendOtp: async (phone) => { const t = await account.createPhoneToken(ID.unique(), phone); sessionStorage.setItem('forword:otp-user', t.userId); sessionStorage.setItem('forword:otp-phone', phone); },
