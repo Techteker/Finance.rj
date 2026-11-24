@@ -87,7 +87,7 @@ function TaxCalc({ def }: { def: CalcDef }) {
       <Segmented items={['New regime', 'Old regime']} value={regime} onChange={setRegime} />
       <SliderField f={def.fields[0]} value={v.income} onChange={(x) => setV({ ...v, income: x })} />
       {key === 'old' && <SliderField f={def.fields[1]} value={v.deductions} onChange={(x) => setV({ ...v, deductions: x })} />}
-      <ResultCard label={`Estimated tax (${key} regime)`} value={inr(cur.total)} rows={[['Taxable income', inr(cur.taxable)], ['Tax before cess', inr(cur.tax)], ['Health & education cess (4%)', inr(cur.cess)], ['Other regime', inr(regime === 0 ? b.total : a.total)]]} />
+      <ResultCard label={`Estimated tax (${key} regime)`} value={inr(cur.total)} rows={[['Taxable income', inr(cur.taxable)], ['Tax before rebate', inr(cur.grossTax)], ['Section 87A rebate / marginal relief', `-${inr(cur.rebate)}`], ['Tax after rebate', inr(cur.tax)], ['Health & education cess (4%)', inr(cur.cess)], ['Other regime', inr(regime === 0 ? b.total : a.total)]]} />
       <p className="rounded-xl bg-mint p-3 text-xs font-medium text-pri-dark">At these inputs the {better} regime gives the lower estimate.</p>
       <Disclaimer items={def.assumptions} />
     </>
