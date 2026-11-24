@@ -1,6 +1,7 @@
 import { ExecutionMethod } from 'appwrite';
 import { COL, DB, ID, Permission, Query, Role, account, databases, functions, REWARDS_FN } from './appwrite';
 import type { AppNotification, Brand, Category, FavType, Favorite, HistoryItem, News, Offer, Product, RewardEvent, Wallet, Withdrawal } from '../types';
+import type { Cat, OfferCategory, Sub } from './menu';
 
 async function list<T>(col: string, q: string[] = []): Promise<T[]> {
   const r = await databases.listDocuments(DB, col, q);
@@ -41,7 +42,51 @@ export const getNewsBySlug = (slug: string) => one<News>(COL.news, [APPROVED, Qu
 export const getNewsCategories = () =>
   cached('news-cats', 10 * 60_000, () => list<Category>(COL.categories, [Query.equal('kind', 'news'), Query.orderAsc('sortOrder'), Query.limit(40)]));
 export const getTrendingTerms = () =>
-  cached('trend-terms', 10 * 60_000, () => list<Category>(COL.categories, [Query.equal('isTrending', true), Query.limit(8)]));
+  cached('trend-terms', 10 * 60_000, () => list<Category>(COL.categories, [Query.equal('kind', 'news'), Query.equal('isTrending', true), Query.limit(8)]));
+
+export const getProductMenu = () =>
+  cached('product-menu', 10 * 60_000, async () => {
+    const parents = await list<Category>(COL.categories, [
+      Query.equal('kind', 'product'),
+      Query.equal('status', 'approved'),
+      Query.orderAsc('sortOrder'),
+      Query.limit(40)
+    ]);
+    return Promise.all(parents.map(async (parent): Promise<Cat> => {
+      const children = await list<Category>(COL.categories, [
+        Query.equal('kind', 'subcategory'),
+        Query.equal('parentSlug', parent.slug),
+        Query.equal('status', 'approved'),
+        Query.orderAsc('sortOrder'),
+        Query.limit(100)
+      ]);
+      return {
+        slug: parent.slug,
+        label: parent.name,
+        icon: parent.icon || 'wallet',
+        desc: parent.description || '',
+        type: parent.productType as Cat['type'],
+        mode: parent.mode === 'guides' ? 'guides' : 'products',
+        subs: children.map((child): Sub => ({
+          slug: child.slug,
+          label: child.name,
+          mode: child.mode as Sub['mode']
+        }))
+      };
+    }));
+  });
+
+export const getOfferCategories = () =>
+  cached('offer-categories', 10 * 60_000, async () => {
+    const rows = await list<Category>(COL.categories, [
+      Query.equal('kind', 'offer'),
+      Query.equal('status', 'approved'),
+      Query.orderAsc('sortOrder'),
+      Query.limit(40)
+    ]);
+    const categories: OfferCategory[] = rows.map((row) => ({ slug: row.slug, label: row.name }));
+    return [{ slug: 'all', label: 'All' }, { slug: 'exclusive', label: 'Exclusive' }, { slug: 'trending', label: 'Trending' }, ...categories];
+  });
 
 /* ---------- Products ---------- */
 export const getProducts = (o: { category: string; subcategory?: string }) => {
