@@ -1,7 +1,25 @@
 import { COL, DB, ID, Permission, Query, Role, databases, functions, REWARDS_FN } from './appwrite';
 import type { AppNotification, Brand, Category, FavType, Favorite, HistoryItem, News, Offer, Product, RewardEvent, Wallet, Withdrawal } from '../types';
 
+const SHARED_CACHE_COLLECTIONS = new Set(['news', 'categories', 'offers', 'products', 'brands']);
+
 async function list<T>(col: string, q: string[] = []): Promise<T[]> {
+  // Public, approved content is routed through Vercel's shared CDN cache.
+  // User-owned collections continue to use the authenticated Appwrite SDK.
+  if (SHARED_CACHE_COLLECTIONS.has(col)) {
+    try {
+      const params = new URLSearchParams({ collection: col, queries: JSON.stringify(q) });
+      const response = await fetch(`/api/public-data?${params.toString()}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        return (result.documents || []) as unknown as T[];
+      }
+    } catch {
+      // Local Vite development and temporary cache outages fall back to Appwrite.
+    }
+  }
   const r = await databases.listDocuments(DB, col, q);
   return r.documents as unknown as T[];
 }
