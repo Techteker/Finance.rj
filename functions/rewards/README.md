@@ -39,7 +39,7 @@ The private `referrals` collection is required in `newsfeed_main` with document 
 - `createdAt` (datetime, optional)
 - `rewardedAt` (datetime, optional)
 
-Add indexes on `referrerId,status` and `referredUserId,status`. The server function alone reads and writes referral records.
+Add indexes on `users.referralCode`, `referrerId,status`, and `referredUserId,status`. The server function alone reads and writes referral records.
 
 Registration captures `/register?ref=CODE`. The first authenticated wallet request records the attribution, rejecting self-referrals and duplicate attribution. When the referred account completes its first eligible 20-second article read, one Appwrite transaction credits 1,000 coins to each account, adds both reward events, and marks the referral rewarded. Deterministic event IDs and the unique referred-user index prevent duplicate payouts.
 
