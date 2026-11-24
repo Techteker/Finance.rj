@@ -63,7 +63,7 @@ export default async ({ req, res, log, error }) => {
       try { return await db.getDocument(DB, USERS, userId); }
       catch (e) {
         if (e.code !== 404) throw e;
-        const referralCode = 'FW' + userId.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
+        const referralCode = 'FW' + userId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         return await db.createDocument(DB, USERS, userId, {
           name: authenticated.name || 'FORWORD User', email: authenticated.email || '',
           coins: 0, balance: 0, streak: 0, referralCode
