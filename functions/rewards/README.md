@@ -6,7 +6,7 @@ Runtime: Node.js 22. Entrypoint: `src/main.js`.
 - `APPWRITE_ENDPOINT`
 - `APPWRITE_PROJECT_ID`
 - `APPWRITE_DATABASE_ID=newsfeed_main`
-- `APPWRITE_API_KEY` (secret project API key with only `databases.read`, `databases.write`, `documents.read` and `documents.write` scopes)
+- `APPWRITE_FUNCTION_API_KEY` is supplied automatically by Appwrite from this function's configured scopes; do not create or store a separate API key
 - `REWARDS_SIGNING_SECRET` (long random secret, at least 32 characters)
 
 Optional configuration:
