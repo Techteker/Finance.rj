@@ -4,6 +4,7 @@ import { Lock, Mail, Phone, User } from 'lucide-react';
 import { Btn, Field, OtpInput } from '../components/ui';
 import { Page } from '../components/layout';
 import { useAuth } from '../hooks/auth';
+import { getWallet } from '../lib/api';
 
 function Shell({ title, sub, children, back = true }: { title: string; sub?: string; children: ReactNode; back?: boolean }) {
   return (
@@ -52,7 +53,7 @@ export function Register() {
     e.preventDefault(); setErr('');
     if (f.password.length < 8) { setErr('Use at least 8 characters for your password.'); return; }
     setBusy(true);
-    try { await register(f.name.trim(), f.email.trim(), f.password); const referralCode = sp.get('ref')?.trim().toUpperCase(); if (referralCode) sessionStorage.setItem('forword:pending-referral', referralCode); nav('/account-created', { replace: true }); } catch (x) { setErr(msgOf(x)); } finally { setBusy(false); }
+    try { await register(f.name.trim(), f.email.trim(), f.password); const referralCode = sp.get('ref')?.trim().toUpperCase(); if (referralCode) { sessionStorage.setItem('forword:pending-referral', referralCode); try { await getWallet(''); } catch { /* Keep the pending code for the next wallet request. */ } } nav('/account-created', { replace: true }); } catch (x) { setErr(msgOf(x)); } finally { setBusy(false); }
   };
   return (
     <Shell title="Join FORWORD" sub="Free account. No spam.">
