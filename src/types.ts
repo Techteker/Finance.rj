@@ -1,7 +1,9 @@
 export interface Doc { $id: string; $createdAt: string; $updatedAt: string }
 
 export interface Category extends Doc {
-  name: string; slug: string; kind: 'news' | 'product'; icon?: string; sortOrder?: number; isTrending?: boolean;
+  name: string; slug: string; kind: 'news' | 'product' | 'subcategory' | 'offer';
+  icon?: string; sortOrder?: number; isTrending?: boolean; parentSlug?: string;
+  description?: string; productType?: string; mode?: string; status?: string;
 }
 export interface News extends Doc {
   title: string; slug: string; summary: string; body: string; imageUrl?: string;
