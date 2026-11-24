@@ -2,7 +2,6 @@ import { FormEvent, ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Phone, User } from 'lucide-react';
 import { Btn, Field, OtpInput } from '../components/ui';
-import { rewardsAction } from '../lib/api';
 import { Page } from '../components/layout';
 import { useAuth } from '../hooks/auth';
 
