@@ -21,6 +21,18 @@ const safeEqual = (a, b) => {
 };
 const eventId = (value) => crypto.createHash('sha256').update(value).digest('hex').slice(0, 32);
 
+// Daily reward boundaries follow India Standard Time, not the server's UTC date.
+const indiaDate = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
+
 export default async ({ req, res, log, error }) => {
   try {
     if (!SECRET) return res.json({ error: 'Rewards service is not configured.' }, 503);
@@ -56,7 +68,7 @@ export default async ({ req, res, log, error }) => {
         });
       }
     };
-    const recordCredit = async (kind, label, coins, uniqueKey) => {
+    const recordCredit = async (kind, label, coins, uniqueKey, userUpdates = null) => {
       await wallet();
       const id = eventId(uniqueKey);
 
@@ -87,6 +99,9 @@ export default async ({ req, res, log, error }) => {
             value: coins * COIN_RUPEES,
             transactionId: tx.$id
           });
+          if (userUpdates) {
+            await db.updateDocument(DB, USERS, userId, userUpdates, [], tx.$id);
+          }
           await db.updateTransaction({ transactionId: tx.$id, commit: true });
           return { duplicate: false, wallet: await wallet() };
         } catch (e) {
@@ -122,15 +137,21 @@ export default async ({ req, res, log, error }) => {
 
     if (action === 'check-in') {
       const w = await wallet();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = indiaDate();
       if (w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === today) {
         return res.json({ ok: true, duplicate: true, message: 'Already checked in today.' });
       }
-      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const yesterday = indiaDate(new Date(Date.now() - 86400000));
       const streak = w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === yesterday ? Number(w.streak || 0) + 1 : 1;
-      const credit = await recordCredit('check-in', 'Daily check-in', CHECKIN_COINS, 'check-in:' + userId + ':' + today);
-      if (!credit.duplicate) await db.updateDocument(DB, USERS, userId, { streak, lastCheckIn: new Date().toISOString() });
-      return res.json({ ok: true, duplicate: credit.duplicate, coins: CHECKIN_COINS });
+      // Persist the streak and last-check-in date in the same transaction as the reward.
+      const credit = await recordCredit(
+        'check-in',
+        'Daily check-in',
+        CHECKIN_COINS,
+        'check-in:' + userId + ':' + today,
+        { streak, lastCheckIn: today }
+      );
+      return res.json({ ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : CHECKIN_COINS });
     }
 
     if (action === 'start-read') {
