@@ -110,8 +110,18 @@ export const saveCalc = (userId: string, slug: string, inputs: unknown, result: 
 /* ---------- Rewards (balances are changed only by a server-side function) ---------- */
 export const getWallet = async (_userId: string) => await rewardsAction('wallet') as unknown as Wallet;
 export const getRewardEvents = async (_userId: string) => (await rewardsAction('events') as { documents: RewardEvent[] }).documents;
+export interface ReferralRecord {
+  $id: string;
+  referrerId: string;
+  referredUserId: string;
+  referralCode: string;
+  status: 'pending_verification' | 'verified' | 'pending_conversion_config' | 'rewarded';
+  createdAt: string;
+  rewardedAt?: string;
+}
+export const getReferrals = async (_userId: string) => (await rewardsAction('referrals') as { documents: ReferralRecord[] }).documents;
 export const getWithdrawals = async (_userId: string) => (await rewardsAction('withdrawals') as { documents: Withdrawal[] }).documents;
-export async function rewardsAction(action: 'wallet' | 'events' | 'withdrawals' | 'check-in' | 'start-read' | 'read' | 'withdraw' | 'sync-profile', payload: Record<string, unknown> = {}) {
+export async function rewardsAction(action: 'wallet' | 'events' | 'referrals' | 'withdrawals' | 'check-in' | 'start-read' | 'read' | 'withdraw' | 'sync-profile', payload: Record<string, unknown> = {}) {
   if (!REWARDS_FN) throw new Error('Rewards service is not configured yet.');
   // Appwrite Functions do not reliably forward the browser session cookie as a
   // user JWT. Mint a short-lived JWT from the authenticated Account session and
