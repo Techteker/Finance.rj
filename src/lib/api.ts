@@ -1,4 +1,4 @@
-import { COL, DB, ID, Permission, Query, Role, databases, functions, REWARDS_FN } from './appwrite';
+import { COL, DB, ID, Permission, Query, Role, account, databases, functions, REWARDS_FN } from './appwrite';
 import type { AppNotification, Brand, Category, FavType, Favorite, HistoryItem, News, Offer, Product, RewardEvent, Wallet, Withdrawal } from '../types';
 
 async function list<T>(col: string, q: string[] = []): Promise<T[]> {
@@ -113,7 +113,18 @@ export const getRewardEvents = async (_userId: string) => (await rewardsAction('
 export const getWithdrawals = async (_userId: string) => (await rewardsAction('withdrawals') as { documents: Withdrawal[] }).documents;
 export async function rewardsAction(action: 'wallet' | 'events' | 'withdrawals' | 'check-in' | 'start-read' | 'read' | 'withdraw', payload: Record<string, unknown> = {}) {
   if (!REWARDS_FN) throw new Error('Rewards service is not configured yet.');
-  const ex = await functions.createExecution(REWARDS_FN, JSON.stringify({ action, ...payload }), false);
+  // Appwrite Functions do not reliably forward the browser session cookie as a
+  // user JWT. Mint a short-lived JWT from the authenticated Account session and
+  // forward it in a dedicated header; the function verifies it with Account.get().
+  const jwt = await account.createJWT();
+  const ex = await functions.createExecution(
+    REWARDS_FN,
+    JSON.stringify({ action, ...payload }),
+    false,
+    '/',
+    'POST',
+    { 'x-forward-user-jwt': jwt.jwt }
+  );
   const body = ex.responseBody ? JSON.parse(ex.responseBody) : {};
   if (ex.responseStatusCode >= 400) throw new Error(body.error || 'Could not complete this action.');
   return body as Record<string, unknown>;
