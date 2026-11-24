@@ -46,7 +46,8 @@ export function Login() {
 export function Register() {
   const { register } = useAuth();
   const nav = useNavigate();
-  const [f, setF] = useState({ name: '', email: '', password: '', referralCode: '' }); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [f, setF] = useState(() => ({ name: '', email: '', password: '', referralCode: searchParams.get('ref') || '' })); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setErr('');
     if (f.password.length < 8) { setErr('Use at least 8 characters for your password.'); return; }
