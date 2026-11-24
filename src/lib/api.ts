@@ -22,6 +22,12 @@ async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
 
 const APPROVED = Query.equal('status', 'approved');
 
+async function requireOwner(userId: string): Promise<void> {
+  if (!userId) throw new Error('Sign in required.');
+  const current = await account.get();
+  if (current.$id !== userId) throw new Error('You can only access your own data.');
+}
+
 /* ---------- News ---------- */
 export type FeedKind = 'latest' | 'trending' | 'breaking' | 'featured' | 'recommended' | 'top-stories';
 export function getNews(opts: { category?: string; kind?: FeedKind; limit?: number } = {}) {
@@ -61,8 +67,14 @@ export function getOffers(o: { category?: string; brandId?: string } = {}) {
   else if (o.category && o.category !== 'all') q.push(Query.equal('category', o.category));
   return list<Offer>(COL.offers, q).then((r) => r.filter((x) => !x.validTill || new Date(x.validTill).getTime() >= Date.now()));
 }
-export const getOffer = (id: string) => databases.getDocument(DB, COL.offers, id) as unknown as Promise<Offer>;
-export const getBrand = (id: string) => databases.getDocument(DB, COL.brands, id) as unknown as Promise<Brand>;
+export const getOffer = (id: string) => one<Offer>(COL.offers, [APPROVED, Query.equal('$id', id)]).then((v) => {
+  if (!v) throw new Error('Offer not found.');
+  return v;
+});
+export const getBrand = (id: string) => one<Brand>(COL.brands, [APPROVED, Query.equal('$id', id)]).then((v) => {
+  if (!v) throw new Error('Brand not found.');
+  return v;
+});
 
 /* ---------- Search ---------- */
 export async function searchAll(term: string) {
@@ -79,33 +91,48 @@ export async function searchAll(term: string) {
 }
 
 /* ---------- Favorites (user-owned documents) ---------- */
-export const getFavorites = (userId: string) => list<Favorite>(COL.favorites, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(200)]);
-export const addFavorite = (userId: string, f: { itemType: FavType; itemId: string; title: string; subtitle?: string; imageUrl?: string; href: string }) =>
-  databases.createDocument(DB, COL.favorites, ID.unique(), { userId, ...f }, [
+export const getFavorites = async (userId: string) => {
+  await requireOwner(userId);
+  return list<Favorite>(COL.favorites, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(200)]);
+};
+export const addFavorite = async (userId: string, f: { itemType: FavType; itemId: string; title: string; subtitle?: string; imageUrl?: string; href: string }) => {
+  await requireOwner(userId);
+  return databases.createDocument(DB, COL.favorites, ID.unique(), { userId, ...f }, [
     Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId)),
   ]) as unknown as Promise<Favorite>;
+};
 export const removeFavorite = (docId: string) => databases.deleteDocument(DB, COL.favorites, docId);
 
 /* ---------- History, notifications, reports, messages ---------- */
-export const getHistory = (userId: string) => list<HistoryItem>(COL.history, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
-export const addHistory = (userId: string, n: News) =>
-  databases.createDocument(DB, COL.history, ID.unique(), { userId, newsId: n.$id, title: n.title, slug: n.slug, imageUrl: n.imageUrl, categoryName: n.categoryName }, [
+export const getHistory = async (userId: string) => {
+  await requireOwner(userId);
+  return list<HistoryItem>(COL.history, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
+};
+export const addHistory = async (userId: string, n: News) => {
+  await requireOwner(userId);
+  return databases.createDocument(DB, COL.history, ID.unique(), { userId, newsId: n.$id, title: n.title, slug: n.slug, imageUrl: n.imageUrl, categoryName: n.categoryName }, [
     Permission.read(Role.user(userId)), Permission.delete(Role.user(userId)),
   ]);
+};
 export const clearHistory = async (userId: string) => {
   const items = await getHistory(userId);
   await Promise.all(items.map((i) => databases.deleteDocument(DB, COL.history, i.$id)));
 };
-export const getNotifications = (userId?: string) =>
-  list<AppNotification>(COL.notifications, [userId ? Query.or([Query.equal('userId', userId), Query.isNull('userId')]) : Query.isNull('userId'), Query.orderDesc('$createdAt'), Query.limit(40)]);
+export const getNotifications = async (userId?: string) => {
+  if (userId) await requireOwner(userId);
+  const audience = userId ? Query.or([Query.equal('userId', userId), Query.isNull('userId')]) : Query.isNull('userId');
+  return list<AppNotification>(COL.notifications, [audience, Query.orderDesc('$createdAt'), Query.limit(40)]);
+};
 export const reportArticle = (newsId: string, reason: string, userId?: string) =>
   databases.createDocument(DB, COL.reports, ID.unique(), { newsId, reason, userId: userId ?? '' }, [Permission.create(Role.any())]);
 export const sendMessage = (m: { name: string; email: string; message: string }) =>
   databases.createDocument(DB, COL.messages, ID.unique(), m, [Permission.create(Role.any())]);
-export const saveCalc = (userId: string, slug: string, inputs: unknown, result: unknown) =>
-  databases.createDocument(DB, COL.calcHistory, ID.unique(), { userId, slug, inputs: JSON.stringify(inputs), result: JSON.stringify(result) }, [
+export const saveCalc = async (userId: string, slug: string, inputs: unknown, result: unknown) => {
+  await requireOwner(userId);
+  return databases.createDocument(DB, COL.calcHistory, ID.unique(), { userId, slug, inputs: JSON.stringify(inputs), result: JSON.stringify(result) }, [
     Permission.read(Role.user(userId)), Permission.delete(Role.user(userId)),
   ]);
+};
 
 /* ---------- Rewards (balances are changed only by a server-side function) ---------- */
 export const getWallet = async (_userId: string) => await rewardsAction('wallet') as unknown as Wallet;
