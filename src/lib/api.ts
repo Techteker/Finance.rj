@@ -61,8 +61,8 @@ export function getOffers(o: { category?: string; brandId?: string } = {}) {
   else if (o.category && o.category !== 'all') q.push(Query.equal('category', o.category));
   return list<Offer>(COL.offers, q).then((r) => r.filter((x) => !x.validTill || new Date(x.validTill).getTime() >= Date.now()));
 }
-export const getOffer = (id: string) => databases.getDocument(DB, COL.offers, id) as unknown as Promise<Offer>;
-export const getBrand = (id: string) => databases.getDocument(DB, COL.brands, id) as unknown as Promise<Brand>;
+export const getOffer = (id: string) => one<Offer>(COL.offers, [APPROVED, Query.equal('$id', id)]);
+export const getBrand = (id: string) => one<Brand>(COL.brands, [APPROVED, Query.equal('$id', id)]);
 
 /* ---------- Search ---------- */
 export async function searchAll(term: string) {

@@ -5,7 +5,8 @@ const DB = process.env.APPWRITE_DATABASE_ID || 'newsfeed_main';
 const USERS = 'users';
 const EVENTS = 'reward_events';
 const WITHDRAWALS = 'withdrawals';
-const SECRET = process.env.REWARDS_SIGNING_SECRET || process.env.APPWRITE_FUNCTION_API_KEY || '';
+const NEWS = 'news';
+const SECRET = process.env.REWARDS_SIGNING_SECRET || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
 const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
 const MIN_WITHDRAWAL = Math.max(1, Number(process.env.MIN_WITHDRAWAL || 100));
@@ -19,6 +20,18 @@ const safeEqual = (a, b) => {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
 const eventId = (value) => crypto.createHash('sha256').update(value).digest('hex').slice(0, 32);
+
+// Daily reward boundaries follow India Standard Time, not the server's UTC date.
+const indiaDate = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
 
 export default async ({ req, res, log, error }) => {
   try {
@@ -55,19 +68,57 @@ export default async ({ req, res, log, error }) => {
         });
       }
     };
-    const recordCredit = async (kind, label, coins, uniqueKey) => {
-      const w = await wallet();
+    const recordCredit = async (kind, label, coins, uniqueKey, userUpdates = null) => {
+      await wallet();
       const id = eventId(uniqueKey);
-      try {
-        await db.createDocument(DB, EVENTS, id, { userId, kind, label, coins });
-      } catch (e) {
-        if (e.code === 409) return { duplicate: true, wallet: w };
-        throw e;
+
+      // Keep the idempotency event and wallet credit in one atomic transaction.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const tx = await db.createTransaction({ ttl: 60 });
+        try {
+          await db.createDocument({
+            databaseId: DB,
+            collectionId: EVENTS,
+            documentId: id,
+            data: { userId, kind, label, coins },
+            transactionId: tx.$id
+          });
+          await db.incrementDocumentAttribute({
+            databaseId: DB,
+            collectionId: USERS,
+            documentId: userId,
+            attribute: 'coins',
+            value: coins,
+            transactionId: tx.$id
+          });
+          await db.incrementDocumentAttribute({
+            databaseId: DB,
+            collectionId: USERS,
+            documentId: userId,
+            attribute: 'balance',
+            value: coins * COIN_RUPEES,
+            transactionId: tx.$id
+          });
+          if (userUpdates) {
+            await db.updateDocument(DB, USERS, userId, userUpdates, undefined, tx.$id);
+          }
+          await db.updateTransaction({ transactionId: tx.$id, commit: true });
+          return { duplicate: false, wallet: await wallet() };
+        } catch (e) {
+          try { await db.updateTransaction({ transactionId: tx.$id, rollback: true }); } catch {}
+          if (e.code === 409) {
+            try {
+              const existing = await db.getDocument(DB, EVENTS, id);
+              if (existing) return { duplicate: true, wallet: await wallet() };
+            } catch (lookupError) {
+              if (lookupError.code !== 404) throw lookupError;
+            }
+            if (attempt < 2) continue;
+          }
+          throw e;
+        }
       }
-      const nextCoins = Number(w.coins || 0) + coins;
-      const nextBalance = Number(w.balance || 0) + coins * COIN_RUPEES;
-      const updated = await db.updateDocument(DB, USERS, userId, { coins: nextCoins, balance: nextBalance });
-      return { duplicate: false, wallet: updated };
+      throw new Error('Could not safely apply reward. Please retry.');
     };
 
     if (action === 'events') {
@@ -86,20 +137,28 @@ export default async ({ req, res, log, error }) => {
 
     if (action === 'check-in') {
       const w = await wallet();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = indiaDate();
       if (w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === today) {
         return res.json({ ok: true, duplicate: true, message: 'Already checked in today.' });
       }
-      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const yesterday = indiaDate(new Date(Date.now() - 86400000));
       const streak = w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === yesterday ? Number(w.streak || 0) + 1 : 1;
-      const credit = await recordCredit('check-in', 'Daily check-in', CHECKIN_COINS, 'check-in:' + userId + ':' + today);
-      if (!credit.duplicate) await db.updateDocument(DB, USERS, userId, { streak, lastCheckIn: new Date().toISOString() });
-      return res.json({ ok: true, duplicate: credit.duplicate, coins: CHECKIN_COINS });
+      // Persist the streak and last-check-in date in the same transaction as the reward.
+      const credit = await recordCredit(
+        'check-in',
+        'Daily check-in',
+        CHECKIN_COINS,
+        'check-in:' + userId + ':' + today,
+        { streak, lastCheckIn: today }
+      );
+      return res.json({ ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : CHECKIN_COINS });
     }
 
     if (action === 'start-read') {
       const newsId = String(body.newsId || '');
       if (!newsId || newsId.length > 36) return res.json({ error: 'A valid article is required.' }, 400);
+      const article = await db.getDocument(DB, NEWS, newsId);
+      if (article.status !== 'approved') return res.json({ error: 'This article is not eligible for rewards.' }, 403);
       const now = Date.now();
       const payload = userId + ':' + newsId + ':' + now;
       const token = Buffer.from(JSON.stringify({ userId, newsId, startedAt: now, sig: sign(payload) })).toString('base64url');
@@ -112,6 +171,8 @@ export default async ({ req, res, log, error }) => {
       try { ticket = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')); } catch { return res.json({ error: 'Invalid reading session.' }, 400); }
       const payload = ticket.userId + ':' + ticket.newsId + ':' + ticket.startedAt;
       if (ticket.userId !== userId || !ticket.newsId || !safeEqual(ticket.sig, sign(payload))) return res.json({ error: 'Invalid reading session.' }, 400);
+      const article = await db.getDocument(DB, NEWS, ticket.newsId);
+      if (article.status !== 'approved') return res.json({ error: 'This article is not eligible for rewards.' }, 403);
       const elapsed = Date.now() - Number(ticket.startedAt);
       if (!Number.isFinite(elapsed) || elapsed < READ_SECONDS * 1000) return res.json({ error: 'Please finish the reading timer first.' }, 400);
       if (elapsed > 30 * 60 * 1000) return res.json({ error: 'Reading session expired. Start again.' }, 400);
@@ -122,15 +183,41 @@ export default async ({ req, res, log, error }) => {
     if (action === 'withdraw') {
       const amount = Number(body.amount);
       const upiId = String(body.upiId || '').trim();
-      if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL || !/^[\\w.\\-]{2,}@[\\w]{2,}$/.test(upiId)) {
+      if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL || !/^[A-Za-z0-9._-]{2,}@[A-Za-z0-9-]{2,}$/.test(upiId)) {
         return res.json({ error: 'Enter a valid UPI ID and meet the minimum withdrawal.' }, 400);
       }
       const w = await wallet();
       if (Number(w.balance || 0) < amount) return res.json({ error: 'Insufficient wallet balance.' }, 400);
-      // Request only: no payment is sent by this function. Admin must review and pay manually.
-      const withdrawal = await db.createDocument(DB, WITHDRAWALS, ID.unique(), { userId, amount, upiId, status: 'pending' });
-      await db.updateDocument(DB, USERS, userId, { balance: Number(w.balance) - amount });
-      return res.json({ ok: true, withdrawalId: withdrawal.$id, status: 'pending' });
+
+      // Debit and withdrawal request commit together. The atomic decrement enforces
+      // a zero floor, so concurrent requests cannot spend the same balance twice.
+      const tx = await db.createTransaction({ ttl: 60 });
+      const withdrawalId = ID.unique();
+      try {
+        await db.decrementDocumentAttribute({
+          databaseId: DB,
+          collectionId: USERS,
+          documentId: userId,
+          attribute: 'balance',
+          value: amount,
+          min: 0,
+          transactionId: tx.$id
+        });
+        await db.createDocument({
+          databaseId: DB,
+          collectionId: WITHDRAWALS,
+          documentId: withdrawalId,
+          data: { userId, amount, upiId, status: 'pending' },
+          transactionId: tx.$id
+        });
+        await db.updateTransaction({ transactionId: tx.$id, commit: true });
+        // Request only: no payment is sent by this function. Admin must review and pay manually.
+        return res.json({ ok: true, withdrawalId, status: 'pending' });
+      } catch (e) {
+        try { await db.updateTransaction({ transactionId: tx.$id, rollback: true }); } catch {}
+        if (e.code === 409) return res.json({ error: 'Wallet changed during this request. Please refresh and try again.' }, 409);
+        throw e;
+      }
     }
 
     return res.json({ error: 'Unsupported rewards action.' }, 400);
