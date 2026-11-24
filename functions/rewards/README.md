@@ -16,6 +16,8 @@ Optional configuration:
 - `COIN_RUPEES=0.01`
 - `MIN_WITHDRAWAL=100`
 
+Daily check-in eligibility and streak rollover use the `Asia/Kolkata` calendar day (IST), including the midnight boundary. The streak and check-in date are committed atomically with the reward credit.
+
 The function verifies the caller's Appwrite user JWT before using its server API key. Configure the function's built-in API key scopes for users.read and the required database/document read-write operations. It owns all balance mutations. Never expose the API key or signing secret in Vite variables.
 
 Actions: `wallet`, `check-in`, `start-read`, `read` (signed ticket; minimum reading duration enforced), and `withdraw`. Withdrawals are created as `pending` requests only; this function does not transfer money. A trusted admin must review and pay them.
