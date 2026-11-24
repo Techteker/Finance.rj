@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Coins, Flame } from 'lucide-react';
-import { getNews, getRewardEvents, getWallet, getWithdrawals, rewardsAction } from '../lib/api';
+import { getNews, getRewardEvents, getReferrals, getWallet, getWithdrawals, rewardsAction } from '../lib/api';
 import { inr, shortDate } from '../lib/format';
 import { useAuth } from '../hooks/auth';
 import { useToast } from '../hooks/app';
@@ -168,9 +168,10 @@ export function Referral() {
 }
 export function ReferralRewards() {
   const [t, setT] = useState(0);
-  return <Gate title="Referral Rewards">{(uid) => <><Segmented items={['Joined', 'Pending']} value={t} onChange={setT} /><ReferralList uid={uid} pending={t === 1} /></>}</Gate>;
+  return <Gate title="Referral Rewards">{(uid) => <><Segmented items={['Rewarded', 'Pending']} value={t} onChange={setT} /><ReferralList uid={uid} pending={t === 1} /></>}</Gate>;
 }
 function ReferralList({ uid, pending }: { uid: string; pending: boolean }) {
-  const s = useAsync(() => getRewardEvents(uid), [uid]);
-  return <Async state={{ ...s, data: s.data?.filter((e) => e.kind === 'referral' && (pending ? e.coins === 0 : e.coins > 0)) }} empty={<EmptyState icon="users" title="No referrals yet" />}>{(i) => <div>{i.map((e) => <ListRow key={e.$id} icon="users" title={e.label} sub={shortDate(e.$createdAt)} right={<span className="text-sm font-bold text-pri-dark">+{e.coins}</span>} />)}</div>}</Async>;
+  const s = useAsync(() => getReferrals(uid), [uid]);
+  const items = s.data?.filter((r) => pending ? r.status !== 'rewarded' : r.status === 'rewarded');
+  return <Async state={{ ...s, data: items }} empty={<EmptyState icon="users" title="No referrals yet" />}>{(rows) => <div>{rows.map((r) => <ListRow key={r.$id} icon="users" title="Friend invited" sub={`${shortDate(r.createdAt)} · ${r.status.replace(/_/g, ' ')}`} right={<span className="text-xs font-bold text-pri-dark">{r.status === 'rewarded' ? '+1000 coins' : 'Pending'}</span>} />)}</div>}</Async>;
 }
