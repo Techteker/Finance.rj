@@ -1,9 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Clock, Search as SearchIcon } from 'lucide-react';
-import { searchAll, getTrendingTerms } from '../lib/api';
+import { searchAll, getTrendingTerms, getProductMenu } from '../lib/api';
 import { CALCS } from '../lib/calc';
-import { CATEGORIES } from '../lib/menu';
 import { useAsync, useDebounced, useLocalList } from '../hooks/useAsync';
 import { Page } from '../components/layout';
 import { Btn, Chips, EmptyState, ErrorState, Field, ListRow, SectionHeader, Skeleton } from '../components/ui';
@@ -26,10 +25,11 @@ export function SearchPage() {
   const [tab, setTab] = useState(0);
   const [recent, addRecent, clearRecent] = useLocalList('forword:recent-searches');
   const trending = useAsync(getTrendingTerms, []);
+  const menu = useAsync(getProductMenu, []);
   const active = debounced.trim().length >= 2 ? debounced.trim() : '';
   const res = useAsync(() => (active ? searchAll(active) : Promise.resolve(null)), [active]);
   const calcs = active ? CALCS.filter((c) => c.title.toLowerCase().includes(active.toLowerCase())) : [];
-  const cats = active ? CATEGORIES.filter((c) => c.label.toLowerCase().includes(active.toLowerCase()) || c.subs.some((s) => s.label.toLowerCase().includes(active.toLowerCase()))) : [];
+  const cats = active ? (menu.data ?? []).filter((c) => c.label.toLowerCase().includes(active.toLowerCase()) || c.subs.some((s) => s.label.toLowerCase().includes(active.toLowerCase()))) : [];
   const submit = (e?: FormEvent) => { e?.preventDefault(); if (input.trim().length >= 2) { addRecent(input.trim()); setSp({ q: input.trim() }); } };
   const d = res.data;
   const total = (d?.news.length ?? 0) + (d?.products.length ?? 0) + (d?.offers.length ?? 0) + calcs.length + cats.length;
