@@ -69,8 +69,8 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Vercel's shared CDN cache serves the same response to many visitors.
-    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    // Cache fresh responses for 60 seconds and permit stale responses for 30 minutes.
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=1800');
     res.setHeader('Vary', 'Accept-Encoding');
     res.statusCode = 200;
     res.end(body);
