@@ -8,8 +8,8 @@ const WITHDRAWALS = 'withdrawals';
 const REFERRALS = 'referrals';
 const NEWS = 'news';
 const SECRET = process.env.REWARDS_SIGNING_SECRET || '';
-const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
-const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
+const CHECKIN_COINS = Number(process.env.CHECKIN_COINS);
+const READ_COINS = Number(process.env.READ_COINS);
 const MIN_WITHDRAWAL = Math.max(500, Number(process.env.MIN_WITHDRAWAL || 500));
 // No implicit INR conversion: reward/withdrawal operations remain disabled until
 // the owner explicitly configures the approved conversion rate in Appwrite.
@@ -51,6 +51,21 @@ export default async ({ req, res, log, error }) => {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const action = body.action;
 
+    const requireConversion = () => {
+      if (!conversionConfigured) {
+        const e = new Error('INR conversion rate is not configured. Rewards and withdrawals are temporarily unavailable.');
+        e.status = 503;
+        throw e;
+      }
+    };
+    const requireRewardAmount = (value, key) => {
+      if (!Number.isFinite(value) || value <= 0) {
+        const e = new Error(`${key} is not configured. This reward is temporarily unavailable.`);
+        e.status = 503;
+        throw e;
+      }
+      requireConversion();
+    };
     const wallet = async (targetUserId = userId) => {
       try { return await db.getDocument(DB, USERS, targetUserId); }
       catch (e) {
@@ -195,7 +210,7 @@ export default async ({ req, res, log, error }) => {
       return res.json({ coins: w.coins || 0, balance: w.balance || 0, streak: w.streak || 0, lastCheckIn: w.lastCheckIn || null, referralCode: w.referralCode || null });
     }
     if (action === 'check-in') {
-      requireConversion();
+      requireRewardAmount(CHECKIN_COINS, 'CHECKIN_COINS');
       const w = await wallet();
       const today = new Date().toISOString().slice(0, 10);
       if (w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === today) return res.json({ ok: true, duplicate: true, message: 'Already checked in today.' });
@@ -216,7 +231,7 @@ export default async ({ req, res, log, error }) => {
       return res.json({ token, seconds: READ_SECONDS });
     }
     if (action === 'read') {
-      requireConversion();
+      requireRewardAmount(READ_COINS, 'READ_COINS');
       const token = String(body.token || '');
       let ticket;
       try { ticket = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')); } catch { return res.json({ error: 'Invalid reading session.' }, 400); }
