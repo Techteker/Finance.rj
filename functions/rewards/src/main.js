@@ -8,7 +8,7 @@ const WITHDRAWALS = 'withdrawals';
 const SECRET = process.env.REWARDS_SIGNING_SECRET || process.env.APPWRITE_FUNCTION_API_KEY || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
 const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
-const MIN_WITHDRAWAL = Math.max(1, Number(process.env.MIN_WITHDRAWAL || 100));
+const MIN_WITHDRAWAL = Math.max(500, Number(process.env.MIN_WITHDRAWAL || 500));
 const COIN_RUPEES = Math.max(0.0001, Number(process.env.COIN_RUPEES || 0.01));
 const READ_SECONDS = Math.max(20, Number(process.env.READ_SECONDS || 20));
 
@@ -100,6 +100,13 @@ export default async ({ req, res, log, error }) => {
     if (action === 'start-read') {
       const newsId = String(body.newsId || '');
       if (!newsId || newsId.length > 36) return res.json({ error: 'A valid article is required.' }, 400);
+      const article = await db.getDocument(DB, 'news', newsId).catch((e) => {
+        if (e.code === 404) return null;
+        throw e;
+      });
+      if (!article || article.status !== 'approved' || (article.publishedAt && new Date(article.publishedAt).getTime() > Date.now())) {
+        return res.json({ error: 'This article is not available for rewards.' }, 404);
+      }
       const now = Date.now();
       const payload = userId + ':' + newsId + ':' + now;
       const token = Buffer.from(JSON.stringify({ userId, newsId, startedAt: now, sig: sign(payload) })).toString('base64url');
