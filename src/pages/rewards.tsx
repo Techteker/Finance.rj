@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Coins, Flame } from 'lucide-react';
-import { getNews, getRewardEvents, getWallet, getWithdrawals, rewardsAction } from '../lib/api';
+import { getNews, getRewardEvents, getReferrals, getWallet, getWithdrawals, rewardsAction } from '../lib/api';
 import { inr, shortDate } from '../lib/format';
 import { useAuth } from '../hooks/auth';
 import { useToast } from '../hooks/app';
@@ -141,9 +141,10 @@ export function Referral() {
   const w = useAsync(() => (user ? getWallet(user.$id) : Promise.reject(new Error('Login required'))), [user?.$id]);
   const toast = useToast();
   const code = w.data?.referralCode;
+  const inviteLink = code && typeof window !== 'undefined' ? `${window.location.origin}/register?ref=${encodeURIComponent(code)}` : '';
   return <Gate title="Invite friends">{() => <>
-    <EmptyState icon="gift" title="Invite friends, earn rewards" text="Share your code. You both earn coins when they join." />
-    {code ? <button onClick={async () => { await navigator.clipboard.writeText(code); toast.show('Code copied'); }} className="w-full rounded-xl border border-dashed border-pri bg-mint py-3 text-base font-bold text-pri-dark">{code}</button> : <p className="text-center text-sm text-slate">Your referral code is not ready yet.</p>}
+    <EmptyState icon="gift" title="Invite friends, earn together" text="You get 1,000 coins and your friend gets 1,000 coins after their first eligible 20-second article read." />
+    {code ? <><div className="rounded-xl border border-dashed border-pri bg-mint p-3 text-center"><p className="text-xs text-slate">Your referral code</p><p className="text-xl font-bold text-pri-dark">{code}</p></div><Btn onClick={async () => { await navigator.clipboard.writeText(inviteLink); toast.show('Invite link copied'); }}>Copy invite link</Btn></> : <p className="text-center text-sm text-slate">Your referral code is not ready yet.</p>}
     <Btn to="/referral/rewards" variant="outline">Referral rewards</Btn>
   </>}</Gate>;
 }
@@ -152,6 +153,7 @@ export function ReferralRewards() {
   return <Gate title="Referral Rewards">{(uid) => <><Segmented items={['Joined', 'Pending']} value={t} onChange={setT} /><ReferralList uid={uid} pending={t === 1} /></>}</Gate>;
 }
 function ReferralList({ uid, pending }: { uid: string; pending: boolean }) {
-  const s = useAsync(() => getRewardEvents(uid), [uid]);
-  return <Async state={{ ...s, data: s.data?.filter((e) => e.kind === 'referral' && (pending ? e.coins === 0 : e.coins > 0)) }} empty={<EmptyState icon="users" title="No referrals yet" />}>{(i) => <div>{i.map((e) => <ListRow key={e.$id} icon="users" title={e.label} sub={shortDate(e.$createdAt)} right={<span className="text-sm font-bold text-pri-dark">+{e.coins}</span>} />)}</div>}</Async>;
+  const s = useAsync(() => getReferrals(uid), [uid]);
+  const items = s.data?.filter((r) => pending ? r.status === 'pending' : r.status === 'rewarded');
+  return <Async state={{ ...s, data: items }} empty={<EmptyState icon="users" title={pending ? 'No pending referrals' : 'No successful referrals yet'} />}>{(i) => <div>{i.map((r) => <ListRow key={r.$id} icon="users" title={`Referral · ${r.referredUserId.slice(0, 8)}`} sub={r.status === 'rewarded' ? `Rewarded ${shortDate(r.rewardedAt || r.$updatedAt)}` : `Joined ${shortDate(r.$createdAt)} · waiting for first eligible read`} right={<span className="text-sm font-bold text-pri-dark">{r.status === 'rewarded' ? '+1,000 each' : 'Pending'}</span>} />)}</div>}</Async>;
 }
