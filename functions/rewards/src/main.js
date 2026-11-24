@@ -100,7 +100,7 @@ export default async ({ req, res, log, error }) => {
             transactionId: tx.$id
           });
           if (userUpdates) {
-            await db.updateDocument(DB, USERS, userId, userUpdates, [], tx.$id);
+            await db.updateDocument(DB, USERS, userId, userUpdates, undefined, tx.$id);
           }
           await db.updateTransaction({ transactionId: tx.$id, commit: true });
           return { duplicate: false, wallet: await wallet() };
