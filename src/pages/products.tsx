@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Check, SlidersHorizontal } from 'lucide-react';
-import { findCat, findSub } from '../lib/menu';
-import { getNews, getProductBySlug, getProducts, getProductsByIds } from '../lib/api';
+import { getProductMenu } from '../lib/api';
+import { getNews, getProductBySlug, getProductMenu, getProducts, getProductsByIds } from '../lib/api';
 import { parseFacts, safeUrl, shortDate } from '../lib/format';
 import { useAsync } from '../hooks/useAsync';
 import { useCompare } from '../hooks/app';
@@ -26,10 +26,13 @@ function sortProducts(list: Product[], s: number) {
 
 export function SubcategoryPage() {
   const { cat: catSlug, sub: subSlug } = useParams();
-  const cat = findCat(catSlug);
-  const sub = findSub(cat, subSlug);
+  const menu = useAsync(getProductMenu, []);
+  if (menu.loading) return <Page title="Category" back><Skeleton rows={3} /></Page>;
+  if (menu.error) return <Page title="Category" back><ErrorState text={menu.error} onRetry={menu.reload} /></Page>;
+  const cat = menu.data?.find((item) => item.slug === catSlug);
+  const sub = cat?.subs.find((item) => item.slug === subSlug);
   if (!cat || !sub) return <NotFound />;
-  if (cat.mode === 'guides') return <GuideList catSlug={cat.slug} sub={sub.slug} title={sub.label} />;
+  if (cat.mode === 'guides' || sub.mode === 'guides') return <GuideList catSlug={cat.slug} sub={sub.slug} title={sub.label} />;
   if (sub.mode === 'eligibility') return <Eligibility catSlug={cat.slug} title={sub.label} />;
   if (sub.mode === 'compare') return <ComparePicker catSlug={cat.slug} title={sub.label} />;
   return <ProductList key={cat.slug + sub.slug} catSlug={cat.slug} subSlug={sub.slug} title={sub.label} />;
