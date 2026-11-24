@@ -26,6 +26,8 @@ const emiResult = (v: Record<string, number>): Result => {
 const loanFields = (amt: Field) => [amt, f('rate', 'Interest rate (p.a.)', 1, 30, 0.1, 10, 'pct'), f('years', 'Tenure', 1, 30, 1, 5, 'yr')];
 
 export const CALCS: CalcDef[] = [
+  { slug: 'loan-calculator', title: 'Loan Calculator', desc: 'Estimate monthly repayment, total interest and total cost.', icon: 'coin', fields: loanFields(f('amount', 'Loan amount', 10000, 20000000, 10000, 500000, 'inr')),
+    assumptions: ['Fixed interest rate for the full tenure.', 'Monthly reducing-balance calculation.', 'Fees, insurance and prepayments are not included.'], compute: emiResult },
   { slug: 'emi-calculator', title: 'EMI Calculator', desc: 'Monthly instalment, interest and total repayment.', icon: 'calc', fields: loanFields(f('amount', 'Loan amount', 10000, 20000000, 10000, 500000, 'inr')),
     assumptions: ['Fixed interest rate for the full tenure.', 'EMI paid monthly at month end; no prepayment.', 'Processing fees and taxes are not included.'], compute: emiResult },
   { slug: 'personal-loan-calculator', title: 'Personal Loan Calculator', desc: 'EMI for an unsecured personal loan.', icon: 'coin', fields: loanFields(f('amount', 'Loan amount', 10000, 5000000, 5000, 200000, 'inr')),
@@ -57,7 +59,7 @@ export const CALCS: CalcDef[] = [
     fields: [f('amount', 'Amount today', 1000, 100000000, 1000, 100000, 'inr'), f('rate', 'Inflation (p.a.)', 1, 20, 0.1, 6, 'pct'), f('years', 'Years', 1, 40, 1, 10, 'yr')],
     assumptions: ['Constant inflation rate for the whole period.'],
     compute: (v) => { const m = v.amount * Math.pow(1 + v.rate / 100, v.years); return { label: 'Same buying power needs', value: inr(m), rows: [['Today', inr(v.amount)], [`In ${v.years} years`, inr(m)]], split: { a: v.amount, b: Math.max(0, m - v.amount) } }; } },
-  { slug: 'savings-goal-calculator', title: 'Savings Goal Calculator', desc: 'Monthly saving needed to reach a goal.', icon: 'star',
+  { slug: 'savings-goal-calculator', title: 'Savings Calculator', desc: 'Monthly saving needed to reach a goal.', icon: 'star',
     fields: [f('goal', 'Goal amount', 10000, 500000000, 10000, 1000000, 'inr'), f('rate', 'Expected return (p.a.)', 0, 20, 0.5, 7, 'pct'), f('years', 'Years', 1, 40, 1, 5, 'yr')],
     assumptions: ['Monthly investing at the start of each month.', 'Constant return; not guaranteed.'],
     compute: (v) => { const i = v.rate / 12 / 100; const n = v.years * 12; const m = i === 0 ? v.goal / n : (v.goal * i) / ((Math.pow(1 + i, n) - 1) * (1 + i));
@@ -72,6 +74,18 @@ export const CALCS: CalcDef[] = [
     fields: [f('spend', 'Monthly spend', 1000, 1000000, 1000, 30000, 'inr'), f('rate', 'Reward rate', 0, 15, 0.1, 2, 'pct'), f('fee', 'Annual fee', 0, 100000, 100, 500, 'inr')],
     assumptions: ['Reward rate applies to all spends; caps and exclusions are ignored.', 'Check the card’s terms for the value of one reward point.'],
     compute: (v) => { const r = v.spend * 12 * (v.rate / 100); return { label: 'Net yearly rewards', value: inr(r - v.fee), rows: [['Yearly spend', inr(v.spend * 12)], ['Rewards earned', inr(r)], ['Annual fee', inr(v.fee)]], split: { a: Math.max(0, r - v.fee), b: v.fee } }; } },
+  { slug: 'simple-interest-calculator', title: 'Simple Interest Calculator', desc: 'Calculate simple interest and maturity amount.', icon: 'percent',
+    fields: [f('amount', 'Principal amount', 1000, 100000000, 1000, 100000, 'inr'), f('rate', 'Interest rate (p.a.)', 0, 30, 0.1, 8, 'pct'), f('years', 'Time', 1, 40, 1, 5, 'yr')],
+    assumptions: ['Interest is calculated on the original principal only.', 'Taxes and fees are not included.'],
+    compute: (v) => { const interest = v.amount * v.rate * v.years / 100; const total = v.amount + interest; return { label: 'Maturity amount', value: inr(total), rows: [['Principal', inr(v.amount)], ['Simple interest', inr(interest)], ['Total amount', inr(total)]], split: { a: v.amount, b: interest } }; } },
+  { slug: 'gst-calculator', title: 'GST Calculator', desc: 'Calculate GST amount and total invoice value.', icon: 'file',
+    fields: [f('amount', 'Taxable amount', 1, 100000000, 100, 10000, 'inr'), f('rate', 'GST rate (%)', 0, 28, 1, 18, 'pct')],
+    assumptions: ['Amount entered is exclusive of GST.', 'Choose the legally applicable rate for the product or service; GST classification may vary.'],
+    compute: (v) => { const gst = v.amount * v.rate / 100; const total = v.amount + gst; return { label: 'Total including GST', value: inr(total), rows: [['Taxable amount', inr(v.amount)], ['GST amount', inr(gst)], ['Total invoice value', inr(total)]], split: { a: v.amount, b: gst } }; } },
+  { slug: 'credit-card-interest-calculator', title: 'Credit Card Interest Calculator', desc: 'Estimate interest on an unpaid credit card balance.', icon: 'card',
+    fields: [f('amount', 'Outstanding balance', 100, 10000000, 100, 25000, 'inr'), f('rate', 'Annual interest rate (APR)', 1, 60, 0.5, 36, 'pct'), f('months', 'Months outstanding', 1, 24, 1, 3, 'num')],
+    assumptions: ['Illustrative monthly compounding on a constant unpaid balance.', 'Issuer-specific daily balance, new spends, late fees, taxes and payment allocation are excluded.', 'Check your card issuer statement for the actual amount due.'],
+    compute: (v) => { const monthly = v.rate / 1200; const total = v.amount * Math.pow(1 + monthly, v.months); const interest = total - v.amount; return { label: 'Estimated balance', value: inr(total), rows: [['Starting balance', inr(v.amount)], ['Estimated interest', inr(interest)], ['Months', String(v.months)]], split: { a: v.amount, b: interest } }; } },
 ];
 export const findCalc = (slug?: string) => CALCS.find((c) => c.slug === slug);
 export const fmtField = (fd: Field, v: number) => (fd.unit === 'inr' ? inr(v) : fd.unit === 'pct' ? `${v}%` : fd.unit === 'yr' ? `${v} yr` : String(v));
