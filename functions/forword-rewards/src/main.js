@@ -181,7 +181,7 @@ export default async ({ req, res, log, error }) => {
     if (action === 'referrals') {
       const result = await db.listDocuments(DB, REFERRALS, [
         Query.equal('referrerId', userId),
-        Query.orderDesc('createdAt'),
+        Query.orderDesc('$createdAt'),
         Query.limit(50)
       ]);
       return res.json({ documents: result.documents });
