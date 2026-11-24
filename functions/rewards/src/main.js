@@ -8,11 +8,11 @@ const WITHDRAWALS = 'withdrawals';
 const SECRET = process.env.REWARDS_SIGNING_SECRET || process.env.APPWRITE_FUNCTION_API_KEY || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
 const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
-const MIN_WITHDRAWAL = Math.max(1, Number(process.env.MIN_WITHDRAWAL || 100));
+const MIN_WITHDRAWAL = Math.max(500, Number(process.env.MIN_WITHDRAWAL || 500));
 const COIN_RUPEES = Math.max(0.0001, Number(process.env.COIN_RUPEES || 0.01));
 const READ_SECONDS = Math.max(20, Number(process.env.READ_SECONDS || 20));
 
-const json = (res, status = 200) => ({ statusCode: status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(res) });
+const indiaDate = (value = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
 const sign = (value) => crypto.createHmac('sha256', SECRET).update(value).digest('hex');
 const safeEqual = (a, b) => {
   const x = Buffer.from(String(a)); const y = Buffer.from(String(b));
@@ -86,12 +86,12 @@ export default async ({ req, res, log, error }) => {
 
     if (action === 'check-in') {
       const w = await wallet();
-      const today = new Date().toISOString().slice(0, 10);
-      if (w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === today) {
+      const today = indiaDate();
+      if (w.lastCheckIn && indiaDate(new Date(w.lastCheckIn)) === today) {
         return res.json({ ok: true, duplicate: true, message: 'Already checked in today.' });
       }
-      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-      const streak = w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === yesterday ? Number(w.streak || 0) + 1 : 1;
+      const yesterday = indiaDate(new Date(Date.now() - 86400000));
+      const streak = w.lastCheckIn && indiaDate(new Date(w.lastCheckIn)) === yesterday ? Number(w.streak || 0) + 1 : 1;
       const credit = await recordCredit('check-in', 'Daily check-in', CHECKIN_COINS, 'check-in:' + userId + ':' + today);
       if (!credit.duplicate) await db.updateDocument(DB, USERS, userId, { streak, lastCheckIn: new Date().toISOString() });
       return res.json({ ok: true, duplicate: credit.duplicate, coins: CHECKIN_COINS });
@@ -100,6 +100,10 @@ export default async ({ req, res, log, error }) => {
     if (action === 'start-read') {
       const newsId = String(body.newsId || '');
       if (!newsId || newsId.length > 36) return res.json({ error: 'A valid article is required.' }, 400);
+      let article;
+      try { article = await db.getDocument(DB, 'news', newsId); }
+      catch (e) { if (e.code === 404) return res.json({ error: 'This article is not available for rewards.' }, 404); throw e; }
+      if (article.status !== 'approved') return res.json({ error: 'Only approved articles can earn rewards.' }, 403);
       const now = Date.now();
       const payload = userId + ':' + newsId + ':' + now;
       const token = Buffer.from(JSON.stringify({ userId, newsId, startedAt: now, sig: sign(payload) })).toString('base64url');
