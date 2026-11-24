@@ -14,7 +14,7 @@ Optional configuration:
 - `READ_COINS=1`
 - `READ_SECONDS=20`
 - `COIN_RUPEES=0.01`
-- `MIN_WITHDRAWAL=100`
+- `MIN_WITHDRAWAL=500` (the server enforces a hard minimum of ₹500 even if configured lower)
 
 Daily check-in eligibility and streak rollover use the `Asia/Kolkata` calendar day (IST), including the midnight boundary. The streak and check-in date are committed atomically with the reward credit.
 
