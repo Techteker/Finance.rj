@@ -141,9 +141,28 @@ export function Referral() {
   const w = useAsync(() => (user ? getWallet(user.$id) : Promise.reject(new Error('Login required'))), [user?.$id]);
   const toast = useToast();
   const code = w.data?.referralCode;
+  const inviteLink = code ? `${window.location.origin}/register?ref=${encodeURIComponent(code)}` : '';
+  const copy = async (value: string, label: string) => {
+    try { await navigator.clipboard.writeText(value); toast.show(label + ' copied'); }
+    catch { toast.show('Could not copy. Please copy it manually.'); }
+  };
+  const share = async () => {
+    if (!inviteLink) return;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Join FORWORD', text: 'Join FORWORD using my referral link. Both accounts can earn 1000 coins after verification.', url: inviteLink });
+      else await copy(inviteLink, 'Invite link');
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') await copy(inviteLink, 'Invite link');
+    }
+  };
   return <Gate title="Invite friends">{() => <>
-    <EmptyState icon="gift" title="Invite friends, earn rewards" text="Share your code. You both earn coins when they join." />
-    {code ? <button onClick={async () => { await navigator.clipboard.writeText(code); toast.show('Code copied'); }} className="w-full rounded-xl border border-dashed border-pri bg-mint py-3 text-base font-bold text-pri-dark">{code}</button> : <p className="text-center text-sm text-slate">Your referral code is not ready yet.</p>}
+    <EmptyState icon="gift" title="Invite friends, earn rewards" text="Both accounts receive 1000 coins after the new account completes verification." />
+    {code ? <>
+      <button onClick={() => copy(code, 'Referral code')} className="w-full rounded-xl border border-dashed border-pri bg-mint py-3 text-base font-bold text-pri-dark">{code}</button>
+      <p className="break-all rounded-xl bg-surface p-3 text-xs text-slate">{inviteLink}</p>
+      <Btn onClick={share}>Share referral link</Btn>
+      <Btn onClick={() => copy(inviteLink, 'Invite link')} variant="outline">Copy invite link</Btn>
+    </> : <p className="text-center text-sm text-slate">Your referral code is not ready yet.</p>}
     <Btn to="/referral/rewards" variant="outline">Referral rewards</Btn>
   </>}</Gate>;
 }
