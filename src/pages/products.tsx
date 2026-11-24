@@ -31,9 +31,9 @@ export function SubcategoryPage() {
   const cat = menu.data?.find((item) => item.slug === catSlug);
   const sub = cat?.subs.find((item) => item.slug === subSlug);
   if (!cat || !sub) return <NotFound />;
-  if (cat.mode === 'guides' || sub.mode === 'guides') return <GuideList catSlug={cat.slug} sub={sub.slug} title={sub.label} />;
   if (sub.mode === 'eligibility') return <Eligibility catSlug={cat.slug} title={sub.label} />;
-  if (sub.mode === 'compare') return <ComparePicker catSlug={cat.slug} title={sub.label} />;
+  if (sub.mode === 'compare' && cat.mode === 'products') return <ComparePicker catSlug={cat.slug} title={sub.label} />;
+  if (cat.mode === 'guides' || sub.mode === 'guides' || sub.mode === 'compare') return <GuideList catSlug={cat.slug} sub={sub.slug} title={sub.label} />;
   return <ProductList key={cat.slug + sub.slug} catSlug={cat.slug} subSlug={sub.slug} title={sub.label} />;
 }
 
@@ -71,7 +71,7 @@ function GuideList({ catSlug, sub, title }: { catSlug: string; sub: string; titl
   const state = useAsync(() => getNews({ category: sub, limit: 20 }), [sub]);
   return (
     <Page title={title} back>
-      {sub === 'tax-calculators' && <Btn to="/calculators/income-tax-calculator" variant="outline">Open income tax calculator</Btn>}
+      {['tax-calculators', 'tax-regime-comparison'].includes(sub) && <Btn to="/calculators/income-tax-calculator" variant="outline">Open income tax calculator</Btn>}
       <Async state={state} empty={<EmptyState title="No guides yet" text={`Guides for ${title.toLowerCase()} will appear here.`} />}>{(items) => <div className="space-y-3">{items.map((n) => <NewsCard key={n.$id} n={n} />)}</div>}</Async>
       <Link to={`/category/${catSlug}`} className="block text-center text-sm font-semibold text-pri-dark">Back to category</Link>
     </Page>
