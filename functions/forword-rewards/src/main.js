@@ -5,6 +5,7 @@ const DB = process.env.APPWRITE_DATABASE_ID || 'newsfeed_main';
 const USERS = 'users';
 const EVENTS = 'reward_events';
 const WITHDRAWALS = 'withdrawals';
+const REFERRALS = 'referrals';
 const NEWS = 'news';
 const SECRET = process.env.REWARDS_SIGNING_SECRET || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
@@ -50,51 +51,45 @@ export default async ({ req, res, log, error }) => {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const action = body.action;
 
-    const wallet = async () => {
-      try { return await db.getDocument(DB, USERS, userId); }
+    const wallet = async (targetUserId = userId) => {
+      try { return await db.getDocument(DB, USERS, targetUserId); }
       catch (e) {
         if (e.code !== 404) throw e;
-        const referralCode = 'FW' + userId.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
-        return await db.createDocument(DB, USERS, userId, {
-          name: authenticated.name || 'FORWORD User', email: authenticated.email || '',
+        const referralCode = 'FW' + String(targetUserId).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        return await db.createDocument(DB, USERS, targetUserId, {
+          name: targetUserId === userId ? (authenticated.name || 'FORWORD User') : 'FORWORD User',
+          email: targetUserId === userId ? (authenticated.email || '') : '',
           coins: 0, balance: 0, streak: 0, referralCode
         });
       }
     };
-    const requireConversion = () => {
-      if (!conversionConfigured) {
-        const e = new Error('INR conversion rate is not configured. Rewards and withdrawals are temporarily unavailable.');
-        e.status = 503;
-        throw e;
-      }
-    };
-    const recordCredit = async (kind, label, coins, uniqueKey) => {
+    const recordCredit = async (targetUserId, kind, label, coins, uniqueKey) => {
       requireConversion();
-      await wallet();
-      const id = eventId(uniqueKey);
+      await wallet(targetUserId);
+      const id = eventId('credit:' + targetUserId + ':' + uniqueKey);
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const tx = await db.createTransaction({ ttl: 60 });
         try {
           await db.createDocument({
             databaseId: DB, collectionId: EVENTS, documentId: id,
-            data: { userId, kind, label, coins }, transactionId: tx.$id
+            data: { userId: targetUserId, kind, label, coins }, transactionId: tx.$id
           });
           await db.incrementDocumentAttribute({
-            databaseId: DB, collectionId: USERS, documentId: userId,
+            databaseId: DB, collectionId: USERS, documentId: targetUserId,
             attribute: 'coins', value: coins, transactionId: tx.$id
           });
           await db.incrementDocumentAttribute({
-            databaseId: DB, collectionId: USERS, documentId: userId,
+            databaseId: DB, collectionId: USERS, documentId: targetUserId,
             attribute: 'balance', value: coins * COIN_RUPEES, transactionId: tx.$id
           });
           await db.updateTransaction({ transactionId: tx.$id, commit: true });
-          return { duplicate: false, wallet: await wallet() };
+          return { duplicate: false, wallet: await wallet(targetUserId) };
         } catch (e) {
           try { await db.updateTransaction({ transactionId: tx.$id, rollback: true }); } catch {}
           if (e.code === 409) {
             try {
               const existing = await db.getDocument(DB, EVENTS, id);
-              if (existing) return { duplicate: true, wallet: await wallet() };
+              if (existing) return { duplicate: true, wallet: await wallet(targetUserId) };
             } catch (lookupError) {
               if (lookupError.code !== 404) throw lookupError;
             }
@@ -105,7 +100,80 @@ export default async ({ req, res, log, error }) => {
       }
       throw new Error('Could not safely apply reward. Please retry.');
     };
+    const processReferral = async (submittedCode = '') => {
+      const verified = Boolean(authenticated.emailVerification || authenticated.phoneVerification);
+      let referral = null;
+      const existing = await db.listDocuments(DB, REFERRALS, [
+        Query.equal('referredUserId', userId),
+        Query.limit(1)
+      ]);
+      referral = existing.documents[0] || null;
 
+      const code = String(submittedCode || '').trim().toUpperCase();
+      if (!referral && code) {
+        const ownWallet = await wallet();
+        if (code === String(ownWallet.referralCode || '').toUpperCase()) {
+          return { status: 'rejected', error: 'Self-referrals are not allowed.' };
+        }
+        const referrers = await db.listDocuments(DB, USERS, [
+          Query.equal('referralCode', code),
+          Query.limit(2)
+        ]);
+        const referrer = referrers.documents[0];
+        if (!referrer || referrers.documents.length !== 1) {
+          return { status: 'rejected', error: 'Referral code is invalid.' };
+        }
+        if (referrer.$id === userId) {
+          return { status: 'rejected', error: 'Self-referrals are not allowed.' };
+        }
+        const referralId = eventId('referral-attribution:' + userId);
+        try {
+          referral = await db.createDocument(DB, REFERRALS, referralId, {
+            referrerId: referrer.$id,
+            referredUserId: userId,
+            referralCode: code,
+            status: verified ? 'verified' : 'pending_verification',
+            createdAt: new Date().toISOString()
+          });
+        } catch (e) {
+          if (e.code !== 409) throw e;
+          referral = await db.getDocument(DB, REFERRALS, referralId);
+        }
+      }
+
+      if (!referral) return { status: 'none' };
+      if (referral.status === 'rewarded') return { status: 'rewarded' };
+      if (!verified) return { status: 'pending_verification' };
+      if (!conversionConfigured) return { status: 'pending_conversion_config' };
+
+      // Each side uses a deterministic ledger key. Safe retries cannot pay either
+      // participant twice if the second credit or final referral update fails.
+      await wallet(referral.referrerId);
+      await recordCredit(userId, 'referral', 'New user referral bonus', 1000, 'referral:new-user:' + userId);
+      await recordCredit(referral.referrerId, 'referral', 'Friend referral bonus', 1000, 'referral:referrer:' + userId);
+      await db.updateDocument(DB, REFERRALS, referral.$id, {
+        status: 'rewarded',
+        rewardedAt: new Date().toISOString()
+      });
+      return { status: 'rewarded' };
+    };
+
+    if (action === 'sync-profile') {
+      const current = await wallet();
+      const name = String(authenticated.name || '').trim();
+      const email = String(authenticated.email || '').trim().toLowerCase();
+      const patch = {};
+      if (name && current.name !== name) patch.name = name;
+      if (email && current.email !== email) patch.email = email;
+      if (Object.keys(patch).length) await db.updateDocument(DB, USERS, userId, patch);
+      const referral = await processReferral(body.referralCode || '');
+      return res.json({
+        ok: true,
+        profileId: userId,
+        referralCode: current.referralCode,
+        referral
+      });
+    }
     if (action === 'events') {
       const result = await db.listDocuments(DB, EVENTS, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
       return res.json({ documents: result.documents });
@@ -125,7 +193,7 @@ export default async ({ req, res, log, error }) => {
       if (w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === today) return res.json({ ok: true, duplicate: true, message: 'Already checked in today.' });
       const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
       const streak = w.lastCheckIn && String(w.lastCheckIn).slice(0, 10) === yesterday ? Number(w.streak || 0) + 1 : 1;
-      const credit = await recordCredit('check-in', 'Daily check-in', CHECKIN_COINS, 'check-in:' + userId + ':' + today);
+      const credit = await recordCredit(userId, 'check-in', 'Daily check-in', CHECKIN_COINS, 'check-in:' + userId + ':' + today);
       if (!credit.duplicate) await db.updateDocument(DB, USERS, userId, { streak, lastCheckIn: new Date().toISOString() });
       return res.json({ ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : CHECKIN_COINS });
     }
@@ -151,7 +219,7 @@ export default async ({ req, res, log, error }) => {
       const elapsed = Date.now() - Number(ticket.startedAt);
       if (!Number.isFinite(elapsed) || elapsed < READ_SECONDS * 1000) return res.json({ error: 'Please finish the reading timer first.' }, 400);
       if (elapsed > 30 * 60 * 1000) return res.json({ error: 'Reading session expired. Start again.' }, 400);
-      const credit = await recordCredit('read', 'Read article', READ_COINS, 'read:' + userId + ':' + ticket.newsId);
+      const credit = await recordCredit(userId, 'read', 'Read article', READ_COINS, 'read:' + userId + ':' + ticket.newsId);
       return res.json({ ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : READ_COINS });
     }
     if (action === 'withdraw') {
