@@ -97,9 +97,9 @@ export const getFavorites = async (userId: string) => {
 };
 export const addFavorite = async (userId: string, f: { itemType: FavType; itemId: string; title: string; subtitle?: string; imageUrl?: string; href: string }) => {
   await requireOwner(userId);
-  return databases.createDocument(DB, COL.favorites, ID.unique(), { userId, ...f }, [
+  return await databases.createDocument(DB, COL.favorites, ID.unique(), { userId, ...f }, [
     Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId)),
-  ]) as unknown as Promise<Favorite>;
+  ]) as unknown as Favorite;
 };
 export const removeFavorite = (docId: string) => databases.deleteDocument(DB, COL.favorites, docId);
 
