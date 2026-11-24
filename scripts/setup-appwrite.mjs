@@ -37,7 +37,7 @@ const SCHEMA = {
   reading_history: { perms: OWNER, doc: true, attrs: { userId: 's*', newsId: 's', title: 's:300', slug: 's', imageUrl: 'u', categoryName: 's' }, idx: [['user', ['userId']]] },
   calculators_history: { perms: OWNER, doc: true, attrs: { userId: 's*', slug: 's', inputs: 't', result: 't' }, idx: [['user', ['userId']]] },
   notifications: { perms: [], doc: true, attrs: { userId: 's', title: 's*:300', body: 's:500', kind: 's', href: 's:300' }, idx: [['user', ['userId']]] },
-  users: { perms: [], doc: true, attrs: { name: 's', email: 's', phone: 's', avatar: 'u', bio: 't', verified: 'b', coins: 'i', balance: 'f', streak: 'i', lastCheckIn: 'd', referralCode: 's' }, idx: [['referral', ['referralCode']]] },
+  users: { perms: [], doc: true, attrs: { name: 's', email: 's', phone: 's', avatar: 'u', bio: 't', verified: 'b', coins: 'i', balance: 'f', streak: 'i', lastCheckIn: 'd', referralCode: 's' }, idx: [['referral_unique', ['referralCode'], 'unique']] },
   reward_events: { perms: [], doc: true, attrs: { userId: 's*', kind: 's', label: 's', coins: 'i' }, idx: [['user', ['userId']]] },
   withdrawals: { perms: [], doc: true, attrs: { userId: 's*', amount: 'f', upiId: 's', status: 's' }, idx: [['user', ['userId']]] },
   referrals: { perms: [], doc: true, attrs: { referrerId: 's*', referredUserId: 's*', referralCode: 's*', status: 's*', createdAt: 'd', rewardedAt: 'd' }, idx: [['referred', ['referredUserId']], ['referrer_status', ['referrerId', 'status']]] },
