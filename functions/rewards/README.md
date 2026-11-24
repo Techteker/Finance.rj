@@ -14,7 +14,7 @@ Optional configuration:
 - `READ_COINS=1`
 - `READ_SECONDS=20`
 - `COIN_RUPEES=0.01`
-- `MIN_WITHDRAWAL=100`
+- `MIN_WITHDRAWAL=500` (the server enforces a hard minimum of ₹500 even if configured lower)
 
 Daily check-in eligibility and streak rollover use the `Asia/Kolkata` calendar day (IST), including the midnight boundary. The streak and check-in date are committed atomically with the reward credit.
 
@@ -27,3 +27,20 @@ The existing `users`, `reward_events`, and `withdrawals` collections must exist.
 
 
 Reward credits and withdrawal debits use Appwrite database transactions. The reward event and wallet update commit together; withdrawal balance debit and pending request commit together. Do not downgrade `node-appwrite` below 32.x without replacing these transaction calls.
+
+
+## Referral rewards
+
+The private `referrals` collection is required in `newsfeed_main` with document security enabled and no public permissions. Required attributes:
+- `referrerId` (string, required)
+- `referredUserId` (string, required; unique index)
+- `referralCode` (string, required)
+- `status` (string, required: `pending` or `rewarded`)
+- `createdAt` (datetime, optional)
+- `rewardedAt` (datetime, optional)
+
+Add indexes on `users.referralCode`, `referrerId,status`, and `referredUserId,status`. The server function alone reads and writes referral records.
+
+Registration captures `/register?ref=CODE`. The first authenticated wallet request records the attribution, rejecting self-referrals and duplicate attribution. When the referred account completes its first eligible 20-second article read, one Appwrite transaction credits 1,000 coins to each account, adds both reward events, and marks the referral rewarded. Deterministic event IDs and the unique referred-user index prevent duplicate payouts.
+
+At the default `COIN_RUPEES=0.01`, each 1,000-coin referral reward is ₹10; this conversion remains configurable through the function environment.

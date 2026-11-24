@@ -34,4 +34,5 @@ export interface AppNotification extends Doc { userId?: string; title: string; b
 export interface HistoryItem extends Doc { userId: string; newsId: string; title: string; slug: string; imageUrl?: string; categoryName?: string }
 export interface RewardEvent extends Doc { userId: string; kind: string; label: string; coins: number }
 export interface Withdrawal extends Doc { userId: string; amount: number; upiId: string; status: string }
+export interface ReferralRecord extends Doc { referrerId: string; referredUserId: string; referralCode: string; status: 'pending' | 'rewarded'; rewardedAt?: string }
 export interface Wallet extends Doc { coins: number; balance: number; streak: number; lastCheckIn?: string; referralCode?: string }

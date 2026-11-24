@@ -1,5 +1,5 @@
 import { COL, DB, ID, Permission, Query, Role, databases, functions, REWARDS_FN } from './appwrite';
-import type { AppNotification, Brand, Category, FavType, Favorite, HistoryItem, News, Offer, Product, RewardEvent, Wallet, Withdrawal } from '../types';
+import type { AppNotification, Brand, Category, FavType, Favorite, HistoryItem, News, Offer, Product, RewardEvent, ReferralRecord, Wallet, Withdrawal } from '../types';
 
 async function list<T>(col: string, q: string[] = []): Promise<T[]> {
   const r = await databases.listDocuments(DB, col, q);
@@ -108,10 +108,16 @@ export const saveCalc = (userId: string, slug: string, inputs: unknown, result: 
   ]);
 
 /* ---------- Rewards (balances are changed only by a server-side function) ---------- */
-export const getWallet = async (_userId: string) => await rewardsAction('wallet') as unknown as Wallet;
+export const getWallet = async (_userId: string) => {
+  const referralCode = typeof window !== 'undefined' ? sessionStorage.getItem('forword:pending-referral') : null;
+  const result = await rewardsAction('wallet', referralCode ? { referralCode } : {}) as unknown as Wallet;
+  if (referralCode && typeof window !== 'undefined') sessionStorage.removeItem('forword:pending-referral');
+  return result;
+};
+export const getReferrals = async (_userId: string) => (await rewardsAction('referrals') as { documents: ReferralRecord[] }).documents;
 export const getRewardEvents = async (_userId: string) => (await rewardsAction('events') as { documents: RewardEvent[] }).documents;
 export const getWithdrawals = async (_userId: string) => (await rewardsAction('withdrawals') as { documents: Withdrawal[] }).documents;
-export async function rewardsAction(action: 'wallet' | 'events' | 'withdrawals' | 'check-in' | 'start-read' | 'read' | 'withdraw', payload: Record<string, unknown> = {}) {
+export async function rewardsAction(action: 'wallet' | 'events' | 'withdrawals' | 'referrals' | 'check-in' | 'start-read' | 'read' | 'withdraw', payload: Record<string, unknown> = {}) {
   if (!REWARDS_FN) throw new Error('Rewards service is not configured yet.');
   const ex = await functions.createExecution(REWARDS_FN, JSON.stringify({ action, ...payload }), false);
   const body = ex.responseBody ? JSON.parse(ex.responseBody) : {};

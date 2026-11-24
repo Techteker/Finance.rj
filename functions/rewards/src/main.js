@@ -5,11 +5,13 @@ const DB = process.env.APPWRITE_DATABASE_ID || 'newsfeed_main';
 const USERS = 'users';
 const EVENTS = 'reward_events';
 const WITHDRAWALS = 'withdrawals';
+const REFERRALS = 'referrals';
+const REFERRAL_COINS = 1000;
 const NEWS = 'news';
 const SECRET = process.env.REWARDS_SIGNING_SECRET || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
 const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
-const MIN_WITHDRAWAL = Math.max(1, Number(process.env.MIN_WITHDRAWAL || 100));
+const MIN_WITHDRAWAL = Math.max(500, Number(process.env.MIN_WITHDRAWAL || 500));
 const COIN_RUPEES = Math.max(0.0001, Number(process.env.COIN_RUPEES || 0.01));
 const READ_SECONDS = Math.max(20, Number(process.env.READ_SECONDS || 20));
 
@@ -61,7 +63,7 @@ export default async ({ req, res, log, error }) => {
       try { return await db.getDocument(DB, USERS, userId); }
       catch (e) {
         if (e.code !== 404) throw e;
-        const referralCode = 'FW' + userId.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
+        const referralCode = 'FW' + userId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         return await db.createDocument(DB, USERS, userId, {
           name: authenticated.name || 'FORWORD User', email: authenticated.email || '',
           coins: 0, balance: 0, streak: 0, referralCode
@@ -121,6 +123,71 @@ export default async ({ req, res, log, error }) => {
       throw new Error('Could not safely apply reward. Please retry.');
     };
 
+    const attachReferral = async (rawCode) => {
+      const code = String(rawCode || '').trim().toUpperCase();
+      if (!code || code.length > 64) return null;
+      try { return await db.getDocument(DB, REFERRALS, userId); }
+      catch (e) { if (e.code !== 404) throw e; }
+      const matches = await db.listDocuments(DB, USERS, [Query.equal('referralCode', code), Query.limit(1)]);
+      const referrer = matches.documents[0];
+      if (!referrer || referrer.$id === userId) return null;
+      try {
+        return await db.createDocument(DB, REFERRALS, userId, {
+          referrerId: referrer.$id,
+          referredUserId: userId,
+          referralCode: code,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        });
+      } catch (e) {
+        if (e.code === 409) return await db.getDocument(DB, REFERRALS, userId);
+        throw e;
+      }
+    };
+
+    const rewardReferral = async (referredUserId) => {
+      let referral;
+      try { referral = await db.getDocument(DB, REFERRALS, referredUserId); }
+      catch (e) { if (e.code === 404) return false; throw e; }
+      if (referral.status !== 'pending' || referral.referrerId === referredUserId) return false;
+      const referrerEventId = eventId('referral:referrer:' + referredUserId);
+      const referredEventId = eventId('referral:referred:' + referredUserId);
+      const tx = await db.createTransaction({ ttl: 60 });
+      try {
+        await db.createDocument({
+          databaseId: DB, collectionId: EVENTS, documentId: referrerEventId,
+          data: { userId: referral.referrerId, kind: 'referral', label: 'Successful referral', coins: REFERRAL_COINS },
+          transactionId: tx.$id
+        });
+        await db.createDocument({
+          databaseId: DB, collectionId: EVENTS, documentId: referredEventId,
+          data: { userId: referredUserId, kind: 'referral', label: 'Welcome referral bonus', coins: REFERRAL_COINS },
+          transactionId: tx.$id
+        });
+        for (const targetId of [referral.referrerId, referredUserId]) {
+          await db.incrementDocumentAttribute({
+            databaseId: DB, collectionId: USERS, documentId: targetId,
+            attribute: 'coins', value: REFERRAL_COINS, transactionId: tx.$id
+          });
+          await db.incrementDocumentAttribute({
+            databaseId: DB, collectionId: USERS, documentId: targetId,
+            attribute: 'balance', value: REFERRAL_COINS * COIN_RUPEES, transactionId: tx.$id
+          });
+        }
+        await db.updateDocument(DB, REFERRALS, referredUserId, {
+          status: 'rewarded', rewardedAt: new Date().toISOString()
+        }, undefined, tx.$id);
+        await db.updateTransaction({ transactionId: tx.$id, commit: true });
+        return true;
+      } catch (e) {
+        try { await db.updateTransaction({ transactionId: tx.$id, rollback: true }); } catch {}
+        let latest;
+        try { latest = await db.getDocument(DB, REFERRALS, referredUserId); } catch {}
+        if (latest?.status === 'rewarded') return false;
+        throw e;
+      }
+    };
+
     if (action === 'events') {
       const result = await db.listDocuments(DB, EVENTS, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
       return res.json({ documents: result.documents });
@@ -129,9 +196,18 @@ export default async ({ req, res, log, error }) => {
       const result = await db.listDocuments(DB, WITHDRAWALS, [Query.equal('userId', userId), Query.orderDesc('$createdAt'), Query.limit(50)]);
       return res.json({ documents: result.documents });
     }
+    if (action === 'referrals') {
+      const [sent, received] = await Promise.all([
+        db.listDocuments(DB, REFERRALS, [Query.equal('referrerId', userId), Query.orderDesc('$createdAt'), Query.limit(100)]),
+        db.listDocuments(DB, REFERRALS, [Query.equal('referredUserId', userId), Query.orderDesc('$createdAt'), Query.limit(100)])
+      ]);
+      const unique = new Map([...sent.documents, ...received.documents].map((item) => [item.$id, item]));
+      return res.json({ documents: [...unique.values()] });
+    }
 
     if (action === 'wallet') {
       const w = await wallet();
+      if (body.referralCode) await attachReferral(body.referralCode);
       return res.json({ coins: w.coins || 0, balance: w.balance || 0, streak: w.streak || 0, lastCheckIn: w.lastCheckIn || null, referralCode: w.referralCode || null });
     }
 
@@ -177,7 +253,8 @@ export default async ({ req, res, log, error }) => {
       if (!Number.isFinite(elapsed) || elapsed < READ_SECONDS * 1000) return res.json({ error: 'Please finish the reading timer first.' }, 400);
       if (elapsed > 30 * 60 * 1000) return res.json({ error: 'Reading session expired. Start again.' }, 400);
       const credit = await recordCredit('read', 'Read article', READ_COINS, 'read:' + userId + ':' + ticket.newsId);
-      return res.json({ ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : READ_COINS });
+      const referralRewarded = await rewardReferral(userId);
+      return res.json({ ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : READ_COINS, referralRewarded });
     }
 
     if (action === 'withdraw') {
