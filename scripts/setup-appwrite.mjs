@@ -7,7 +7,7 @@
  *   APPWRITE_ENDPOINT=... APPWRITE_PROJECT_ID=... APPWRITE_API_KEY=... npm run setup:appwrite
  * The API key needs: databases.read/write, collections.read/write, attributes.read/write, indexes.read/write, documents.read/write.
  */
-import { Client, Databases, ID, Permission, Role } from 'node-appwrite';
+import { Client, Databases, ID, Permission, Query, Role } from 'node-appwrite';
 
 const { APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY, APPWRITE_DATABASE_ID = 'newsfeed_main' } = process.env;
 if (!APPWRITE_ENDPOINT || !APPWRITE_PROJECT_ID || !APPWRITE_API_KEY) { console.error('Set APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID and APPWRITE_API_KEY.'); process.exit(1); }
@@ -73,5 +73,25 @@ for (const [id, c] of Object.entries(SCHEMA)) {
 const NEWS_CATS = ['Business News', 'Personal Finance', 'Banking News', 'Stock Market News', 'Economy News', 'Tax News', 'Cryptocurrency News', 'Mutual Fund News', 'Insurance News', 'Credit Card News', 'Loan News', 'Investment News', 'Government Schemes', 'Startup News', 'Technology & Fintech News', 'Real Estate News', 'Gold & Silver News', 'Global Finance News'];
 const slug = (s) => s.toLowerCase().replace(/&/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 let i = 0;
-for (const name of NEWS_CATS) await safe('news category ' + name, () => db.createDocument(DB, 'categories', ID.unique(), { name, slug: slug(name), kind: 'news', sortOrder: i++ }));
+for (const name of NEWS_CATS) {
+  const categorySlug = slug(name);
+  await safe('news category ' + name, async () => {
+    const existing = await db.listDocuments(DB, 'categories', [
+      Query.equal('slug', categorySlug),
+      Query.equal('kind', 'news'),
+      Query.limit(1)
+    ]);
+    if (existing.total > 0) {
+      console.log('  =', 'news category ' + name, '(already seeded)');
+      return;
+    }
+    await db.createDocument(DB, 'categories', ID.unique(), {
+      name,
+      slug: categorySlug,
+      kind: 'news',
+      sortOrder: i
+    });
+    i += 1;
+  });
+}
 console.log('Done. See README for permissions notes and the rewards function.');
