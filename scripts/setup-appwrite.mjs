@@ -21,13 +21,11 @@ const safe = async (label, fn) => { try { await fn(); console.log('  +', label);
 const READ_PUBLIC = [Permission.read(Role.any())];
 const OWNER = [Permission.create(Role.users())];
 const ANY_CREATE = [Permission.create(Role.any())];
-const ADMIN = [];
 
 const SCHEMA = {
   categories: { perms: READ_PUBLIC, doc: false, attrs: { name: 's*', slug: 's*', kind: 's*', icon: 's', sortOrder: 'i', isTrending: 'b' }, idx: [['slug', ['slug']], ['kind', ['kind']]] },
   news: { perms: READ_PUBLIC, doc: false, attrs: { title: 's*:300', slug: 's*', summary: 't', body: 't', imageUrl: 'u', categoryName: 's', categorySlug: 's', publisher: 's*', sourceUrl: 'u', author: 's', publishedAt: 'd', readTime: 'i', status: 's*', isSponsored: 'b', isBreaking: 'b', isFeatured: 'b', views: 'i', 'relatedProductIds': 's[]' },
     idx: [['slug', ['slug']], ['status', ['status']], ['cat', ['categorySlug']], ['pub', ['publishedAt'], 'key', ['DESC']], ['views', ['views'], 'key', ['DESC']], ['title_ft', ['title'], 'fulltext']] },
-  news_pending: { perms: ADMIN, doc: false, attrs: { title: 's:300', sourceUrl: 'u', payload: 't', status: 's' }, idx: [] },
   brands: { perms: READ_PUBLIC, doc: false, attrs: { name: 's*', logoUrl: 'u', description: 's:500', status: 's*' }, idx: [['status', ['status']]] },
   offers: { perms: READ_PUBLIC, doc: false, attrs: { title: 's*:300', brandId: 's*', brandName: 's', brandLogo: 'u', imageUrl: 'u', description: 't', discount: 's', couponCode: 's', validTill: 'd', terms: 's[]:500', externalUrl: 'u', category: 's', isExclusive: 'b', isTrending: 'b', status: 's*' },
     idx: [['status', ['status']], ['cat', ['category']], ['brand', ['brandId']], ['title_ft', ['title'], 'fulltext']] },
@@ -44,7 +42,6 @@ const SCHEMA = {
   withdrawals: { perms: ADMIN, doc: true, attrs: { userId: 's*', amount: 'f', upiId: 's', status: 's' }, idx: [['user', ['userId']]] },
   reports: { perms: ANY_CREATE, doc: false, attrs: { newsId: 's', reason: 's', userId: 's' }, idx: [] },
   contact_messages: { perms: ANY_CREATE, doc: false, attrs: { name: 's', email: 's', message: 't' }, idx: [] },
-  admin_users: { perms: ADMIN, doc: false, attrs: { userId: 's*', role: 's' }, idx: [['user', ['userId']]] },
 };
 
 async function addAttr(col, key, code) {
