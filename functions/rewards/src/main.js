@@ -6,7 +6,7 @@ const USERS = 'users';
 const EVENTS = 'reward_events';
 const WITHDRAWALS = 'withdrawals';
 const SECRET = process.env.REWARDS_SIGNING_SECRET || '';
-const APPWRITE_API_KEY = process.env.APPWRITE_API_KEY || '';
+const APPWRITE_API_KEY = process.env.APPWRITE_FUNCTION_API_KEY || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
 const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
 const MIN_WITHDRAWAL = Math.max(500, Number(process.env.MIN_WITHDRAWAL || 500));
@@ -120,6 +120,11 @@ export default async ({ req, res, log, error }) => {
       const elapsed = Date.now() - Number(ticket.startedAt);
       if (!Number.isFinite(elapsed) || elapsed < READ_SECONDS * 1000) return res.json({ error: 'Please finish the reading timer first.' }, 400);
       if (elapsed > 30 * 60 * 1000) return res.json({ error: 'Reading session expired. Start again.' }, 400);
+      // Re-check approval at claim time; an article may have been unpublished after the timer started.
+      let article;
+      try { article = await db.getDocument(DB, 'news', ticket.newsId); }
+      catch (e) { if (e.code === 404) return res.json({ error: 'This article is no longer available for rewards.' }, 404); throw e; }
+      if (article.status !== 'approved') return res.json({ error: 'This article is no longer approved for rewards.' }, 403);
       const credit = await recordCredit('read', 'Read article', READ_COINS, 'read:' + userId + ':' + ticket.newsId);
       return res.json({ ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : READ_COINS });
     }
