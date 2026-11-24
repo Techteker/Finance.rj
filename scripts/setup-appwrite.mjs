@@ -75,6 +75,7 @@ const slug = (s) => s.toLowerCase().replace(/&/g, '').replace(/[^a-z0-9]+/g, '-'
 let i = 0;
 for (const name of NEWS_CATS) {
   const categorySlug = slug(name);
+  const sortOrder = i++;
   await safe('news category ' + name, async () => {
     const existing = await db.listDocuments(DB, 'categories', [
       Query.equal('slug', categorySlug),
@@ -89,9 +90,8 @@ for (const name of NEWS_CATS) {
       name,
       slug: categorySlug,
       kind: 'news',
-      sortOrder: i
+      sortOrder
     });
-    i += 1;
   });
 }
 console.log('Done. See README for permissions notes and the rewards function.');
