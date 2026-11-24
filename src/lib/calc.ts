@@ -50,7 +50,7 @@ export const CALCS: CalcDef[] = [
       return { label: 'Maturity value', value: inr(m), rows: [['Total deposited', inr(dep)], ['Interest earned', inr(m - dep)]], split: { a: dep, b: Math.max(0, m - dep) } }; } },
   { slug: 'income-tax-calculator', title: 'Income Tax Calculator', desc: 'Compare old and new regime tax.', icon: 'file', special: 'tax',
     fields: [f('income', 'Annual income', 0, 100000000, 10000, 1200000, 'inr'), f('deductions', 'Eligible deductions (old regime)', 0, 1000000, 5000, 150000, 'inr')],
-    assumptions: ['Salaried individual under 60; standard deduction applied.', 'Surcharge and marginal relief are not included.', 'Slabs are configured in taxConfig.ts; verify them for the selected year.'] },
+    assumptions: ['Resident salaried individual under 60; standard deduction applied.', 'Section 87A rebate applies only to eligible resident individuals and not to special-rate income.', 'Surcharge and surcharge marginal relief are not included.', 'Rates are maintained in taxConfig.ts and should be rechecked after each Finance Act.'] },
   { slug: 'compound-interest-calculator', title: 'Compound Interest Calculator', desc: 'Growth of a lump sum with annual compounding.', icon: 'trend',
     fields: [f('amount', 'Principal', 1000, 100000000, 1000, 100000, 'inr'), f('rate', 'Rate (p.a.)', 1, 30, 0.1, 8, 'pct'), f('years', 'Time', 1, 40, 1, 10, 'yr')],
     assumptions: ['Interest compounded annually.', 'Taxes are not included.'],
