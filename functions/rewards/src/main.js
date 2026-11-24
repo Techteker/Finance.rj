@@ -5,7 +5,8 @@ const DB = process.env.APPWRITE_DATABASE_ID || 'newsfeed_main';
 const USERS = 'users';
 const EVENTS = 'reward_events';
 const WITHDRAWALS = 'withdrawals';
-const SECRET = process.env.REWARDS_SIGNING_SECRET || process.env.APPWRITE_FUNCTION_API_KEY || '';
+const SECRET = process.env.REWARDS_SIGNING_SECRET || '';
+const APPWRITE_API_KEY = process.env.APPWRITE_API_KEY || '';
 const CHECKIN_COINS = Math.max(0, Number(process.env.CHECKIN_COINS || 5));
 const READ_COINS = Math.max(0, Number(process.env.READ_COINS || 1));
 const MIN_WITHDRAWAL = Math.max(500, Number(process.env.MIN_WITHDRAWAL || 500));
@@ -22,7 +23,7 @@ const eventId = (value) => crypto.createHash('sha256').update(value).digest('hex
 
 export default async ({ req, res, log, error }) => {
   try {
-    if (!SECRET) return res.json({ error: 'Rewards service is not configured.' }, 503);
+    if (!SECRET || !APPWRITE_API_KEY) return res.json({ error: 'Rewards service is not configured.' }, 503);
     const userId = req.headers['x-appwrite-user-id'];
     const userJwt = req.headers['x-appwrite-user-jwt'];
     if (!userId || !userJwt) return res.json({ error: 'Please sign in again.' }, 401);
@@ -39,7 +40,7 @@ export default async ({ req, res, log, error }) => {
     const adminClient = new Client()
       .setEndpoint(process.env.APPWRITE_ENDPOINT)
       .setProject(process.env.APPWRITE_PROJECT_ID)
-      .setKey(process.env.APPWRITE_FUNCTION_API_KEY);
+      .setKey(APPWRITE_API_KEY);
     const db = new Databases(adminClient);
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const action = body.action;
