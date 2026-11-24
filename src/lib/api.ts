@@ -1,5 +1,5 @@
 import { COL, DB, ID, Permission, Query, Role, databases, functions, REWARDS_FN } from './appwrite';
-import type { AppNotification, Brand, Category, FavType, Favorite, HistoryItem, News, Offer, Product, RewardEvent, Wallet, Withdrawal } from '../types';
+import type { AppNotification, Brand, Category, FavType, Favorite, HistoryItem, News, Offer, Product, RewardEvent, ReferralRecord, Wallet, Withdrawal } from '../types';
 
 async function list<T>(col: string, q: string[] = []): Promise<T[]> {
   const r = await databases.listDocuments(DB, col, q);
