@@ -23,7 +23,7 @@ const OWNER = [Permission.create(Role.users())];
 const ANY_CREATE = [Permission.create(Role.any())];
 
 const SCHEMA = {
-  categories: { perms: READ_PUBLIC, doc: false, attrs: { name: 's*', slug: 's*', kind: 's*', icon: 's', sortOrder: 'i', isTrending: 'b' }, idx: [['slug', ['slug']], ['kind', ['kind']]] },
+  categories: { perms: READ_PUBLIC, doc: false, attrs: { name: 's*', slug: 's*', kind: 's*', icon: 's', sortOrder: 'i', isTrending: 'b', parentSlug: 's', description: 's:500', productType: 's', mode: 's', status: 's' }, idx: [['slug', ['slug']], ['kind', ['kind']], ['parent', ['parentSlug']], ['status', ['status']]] },
   news: { perms: [], doc: true, attrs: { title: 's*:300', slug: 's*', summary: 't', body: 't', imageUrl: 'u', categoryName: 's', categorySlug: 's', publisher: 's*', sourceUrl: 'u', author: 's', publishedAt: 'd', readTime: 'i', status: 's*', isSponsored: 'b', isBreaking: 'b', isFeatured: 'b', views: 'i', 'relatedProductIds': 's[]' },
     idx: [['slug', ['slug']], ['status', ['status']], ['cat', ['categorySlug']], ['pub', ['publishedAt'], 'key', ['DESC']], ['views', ['views'], 'key', ['DESC']], ['title_ft', ['title'], 'fulltext']] },
   brands: { perms: [], doc: true, attrs: { name: 's*', logoUrl: 'u', description: 's:500', status: 's*' }, idx: [['status', ['status']]] },
@@ -93,5 +93,63 @@ for (const name of NEWS_CATS) {
       sortOrder
     });
   });
+}
+const PRODUCT_CATS = [
+  { name: 'Credit Cards', slug: 'credit-cards', icon: 'credit-card', productType: 'credit_card', mode: 'products', description: 'Compare credit cards, fees, rewards and eligibility.', subs: [
+    ['best-credit-cards', 'Best Credit Cards'], ['beginner-credit-cards', 'For Beginners'], ['student-credit-cards', 'For Students'], ['lifetime-free-credit-cards', 'Lifetime Free'], ['cashback-credit-cards', 'Cashback'], ['travel-credit-cards', 'Travel'], ['fuel-credit-cards', 'Fuel'], ['shopping-credit-cards', 'Shopping'], ['rewards-credit-cards', 'Rewards'], ['business-credit-cards', 'Business'], ['premium-credit-cards', 'Premium'], ['rupay-credit-cards', 'RuPay'], ['credit-card-eligibility', 'Eligibility', 'eligibility'], ['credit-card-comparison', 'Compare Cards', 'compare']
+  ] },
+  { name: 'Banking', slug: 'banking', icon: 'bank', productType: 'bank_account', mode: 'products', description: 'Explore savings accounts, deposits and banking services.', subs: [
+    ['best-savings-accounts', 'Best Savings Accounts'], ['zero-balance-accounts', 'Zero Balance Accounts'], ['salary-accounts', 'Salary Accounts'], ['senior-citizen-accounts', 'Senior Citizen Accounts'], ['digital-savings-accounts', 'Digital Savings Accounts'], ['fixed-deposits', 'Fixed Deposits'], ['recurring-deposits', 'Recurring Deposits'], ['small-finance-banks', 'Small Finance Banks'], ['current-accounts', 'Current Accounts']
+  ] },
+  { name: 'Loans', slug: 'loans', icon: 'home', productType: 'loan', mode: 'products', description: 'Compare loan products, rates and eligibility.', subs: [
+    ['personal-loans', 'Personal Loans'], ['home-loans', 'Home Loans'], ['business-loans', 'Business Loans'], ['education-loans', 'Education Loans'], ['gold-loans', 'Gold Loans'], ['car-loans', 'Car Loans'], ['two-wheeler-loans', 'Two Wheeler Loans'], ['loan-against-property', 'Loan Against Property'], ['loan-eligibility', 'Loan Eligibility', 'eligibility'], ['loan-comparison', 'Compare Loans', 'compare']
+  ] },
+  { name: 'Insurance', slug: 'insurance', icon: 'shield', productType: 'insurance', mode: 'products', description: 'Compare health, life, motor and travel insurance.', subs: [
+    ['health-insurance', 'Health Insurance'], ['term-life-insurance', 'Term Life Insurance'], ['life-insurance', 'Life Insurance'], ['car-insurance', 'Car Insurance'], ['bike-insurance', 'Bike Insurance'], ['travel-insurance', 'Travel Insurance'], ['family-health-insurance', 'Family Health Insurance'], ['senior-citizen-insurance', 'Senior Citizen Insurance'], ['insurance-comparison', 'Compare Insurance', 'compare']
+  ] },
+  { name: 'Investments', slug: 'investments', icon: 'trending-up', productType: 'investment', mode: 'products', description: 'Explore investment products and long-term savings options.', subs: [
+    ['mutual-funds', 'Mutual Funds'], ['sip', 'SIP'], ['index-funds', 'Index Funds'], ['etfs', 'ETFs'], ['stocks', 'Stocks'], ['bonds', 'Bonds'], ['government-securities', 'Government Securities'], ['nps', 'NPS'], ['ppf', 'PPF'], ['epf', 'EPF'], ['fixed-deposits', 'Fixed Deposits'], ['gold-investments', 'Gold Investments']
+  ] },
+  { name: 'Tax Saving', slug: 'tax-savings', icon: 'file-text', mode: 'guides', description: 'Tax planning guides, deductions and calculators.', subs: [
+    ['income-tax', 'Income Tax'], ['tax-saving-investments', 'Tax Saving Investments'], ['tax-regime-comparison', 'Tax Regime Comparison', 'compare'], ['tax-calculators', 'Tax Calculators'], ['itr-guides', 'ITR Guides'], ['budget-planning', 'Budget Planning']
+  ] },
+  { name: 'Government Schemes', slug: 'government-schemes', icon: 'landmark', productType: 'scheme', mode: 'guides', description: 'Government-backed savings and social security schemes.', subs: [
+    ['pm-jan-dhan-yojana', 'PM Jan Dhan Yojana'], ['pmjjby', 'PMJJBY'], ['pmsby', 'PMSBY'], ['atal-pension-yojana', 'Atal Pension Yojana'], ['sukanya-samriddhi-yojana', 'Sukanya Samriddhi Yojana'], ['public-provident-fund', 'Public Provident Fund'], ['national-savings-certificate', 'National Savings Certificate'], ['other-government-schemes', 'Other Government Schemes']
+  ] }
+];
+const OFFER_CATS = [
+  ['banking', 'Banking'], ['cards', 'Cards'], ['loans', 'Loans'], ['insurance', 'Insurance'],
+  ['investments', 'Investments'], ['tax-saving', 'Tax Saving'], ['travel', 'Travel'],
+  ['shopping', 'Shopping'], ['fuel', 'Fuel'], ['cashback', 'Cashback'],
+  ['electronics', 'Electronics'], ['education', 'Education']
+];
+async function ensureCategory(data) {
+  const queries = [Query.equal('kind', data.kind), Query.equal('slug', data.slug)];
+  if (data.parentSlug) queries.push(Query.equal('parentSlug', data.parentSlug));
+  const existing = await db.listDocuments(DB, 'categories', [...queries, Query.limit(1)]);
+  if (existing.total > 0) return;
+  await db.createDocument(DB, 'categories', ID.unique(), data);
+}
+let productOrder = 0;
+for (const cat of PRODUCT_CATS) {
+  await safe('product category ' + cat.name, () => ensureCategory({
+    name: cat.name, slug: cat.slug, kind: 'product', icon: cat.icon,
+    sortOrder: productOrder++, description: cat.description, productType: cat.productType || '',
+    mode: cat.mode, status: 'approved'
+  }));
+  let subOrder = 0;
+  for (const sub of cat.subs) {
+    await safe('subcategory ' + sub[1], () => ensureCategory({
+      name: sub[1], slug: sub[0], kind: 'subcategory', parentSlug: cat.slug,
+      icon: cat.icon, sortOrder: subOrder++, mode: sub[2] || cat.mode,
+      status: 'approved'
+    }));
+  }
+}
+let offerOrder = 0;
+for (const [slugValue, name] of OFFER_CATS) {
+  await safe('offer category ' + name, () => ensureCategory({
+    name, slug: slugValue, kind: 'offer', sortOrder: offerOrder++, status: 'approved'
+  }));
 }
 console.log('Done. See README for permissions notes and the rewards function.');
