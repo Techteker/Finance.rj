@@ -129,7 +129,7 @@ export default async ({ req, res, log, error }) => {
     if (action === 'withdraw') {
       const amount = Number(body.amount);
       const upiId = String(body.upiId || '').trim();
-      if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL || !/^[\\w.\\-]{2,}@[\\w]{2,}$/.test(upiId)) {
+      if (!Number.isFinite(amount) || amount < MIN_WITHDRAWAL || !/^[\w.-]{2,}@[\w]{2,}$/.test(upiId)) {
         return res.json({ error: 'Enter a valid UPI ID and meet the minimum withdrawal.' }, 400);
       }
       const w = await wallet();
