@@ -128,7 +128,7 @@ export const Withdraw = () => (
 );
 function WithdrawForm() {
   const [amount, setAmount] = useState(''); const [upi, setUpi] = useState(''); const [msg, setMsg] = useState(''); const toast = useToast();
-  const ok = Number(amount) > 0 && /^[\w.\-]{2,}@[\w]{2,}$/.test(upi.trim());
+  const ok = Number(amount) >= 500 && /^[\w.-]{2,}@[\w]{2,}$/.test(upi.trim());
   const submit = async () => { try { await rewardsAction('withdraw', { amount: Number(amount), upiId: upi.trim() }); toast.show('Withdrawal requested'); setAmount(''); setUpi(''); } catch (e) { setMsg((e as Error).message); } };
   return <div className="mx-auto max-w-md space-y-4"><h2 className="text-2xl font-bold">Withdraw to UPI</h2><p className="text-sm text-slate">Minimum withdrawal is ₹500. Requests are reviewed and paid manually after approval.</p>
     <Field label="Amount (₹)" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" />
