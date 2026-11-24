@@ -6,7 +6,7 @@ Runtime: Node.js 22. Entrypoint: `src/main.js`.
 - `APPWRITE_ENDPOINT`
 - `APPWRITE_PROJECT_ID`
 - `APPWRITE_DATABASE_ID=newsfeed_main`
-- `APPWRITE_API_KEY` (secret; users.read, databases.read, documents.read/write)
+- `APPWRITE_FUNCTION_API_KEY` (Appwrite function runtime key; grant the function the required users.read, databases.read and documents.read/write scopes)
 - `REWARDS_SIGNING_SECRET` (long random secret, at least 32 characters)
 
 Optional configuration:
@@ -14,7 +14,7 @@ Optional configuration:
 - `READ_COINS=1`
 - `READ_SECONDS=20`
 - `COIN_RUPEES=0.01`
-- `MIN_WITHDRAWAL=100`
+- `MIN_WITHDRAWAL=500`
 
 The function verifies the caller's Appwrite user JWT before using its server API key. It owns all balance mutations. Never expose the API key or signing secret in Vite variables.
 
