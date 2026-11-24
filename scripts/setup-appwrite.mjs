@@ -70,11 +70,17 @@ for (const [id, c] of Object.entries(SCHEMA)) {
   for (const [name, attrs, type = 'key', orders] of c.idx) await safe(`index ${id}.${name}`, () => db.createIndex(DB, id, name, type, attrs, orders));
 }
 
-const NEWS_CATS = ['Business News', 'Personal Finance', 'Banking News', 'Stock Market News', 'Economy News', 'Tax News', 'Cryptocurrency News', 'Mutual Fund News', 'Insurance News', 'Credit Card News', 'Loan News', 'Investment News', 'Government Schemes', 'Startup News', 'Technology & Fintech News', 'Real Estate News', 'Gold & Silver News', 'Global Finance News'];
-const slug = (s) => s.toLowerCase().replace(/&/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+const NEWS_CATS = [
+  ['Business News', 'business'], ['Personal Finance', 'personal-finance'], ['Banking News', 'banking'],
+  ['Stock Market News', 'markets'], ['Economy News', 'economy'], ['Tax News', 'tax'],
+  ['Cryptocurrency News', 'crypto'], ['Mutual Fund News', 'mutual-funds'], ['Insurance News', 'insurance'],
+  ['Credit Card News', 'credit-cards'], ['Loan News', 'loans'], ['Investment News', 'investing'],
+  ['Government Schemes', 'government-schemes'], ['Startup News', 'startups'],
+  ['Technology & Fintech News', 'technology-fintech'], ['Real Estate News', 'real-estate'],
+  ['Gold & Silver News', 'gold-silver'], ['Global Finance News', 'global-finance']
+];
 let i = 0;
-for (const name of NEWS_CATS) {
-  const categorySlug = slug(name);
+for (const [name, categorySlug] of NEWS_CATS) {
   const sortOrder = i++;
   await safe('news category ' + name, async () => {
     const existing = await db.listDocuments(DB, 'categories', [
