@@ -1,5 +1,6 @@
 import multer from 'multer';
 import type { Request, Response } from 'express';
+import { adaptExpressResponse } from '../../server/vercelResponse';
 import { uploadStorageRouteHandler } from '../../server/storageService';
 
 const upload = multer({
@@ -10,6 +11,7 @@ const upload = multer({
 export const config = { api: { bodyParser: false } };
 
 export default async function handler(req: Request, res: Response) {
+  res = adaptExpressResponse(res);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') {
