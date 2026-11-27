@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { adaptExpressResponse } from '../server/vercelResponse';
 import { rewardsRouteHandler } from '../server/rewardsService';
 
 /**
@@ -6,6 +7,7 @@ import { rewardsRouteHandler } from '../server/rewardsService';
  * idempotency and ledger mutations remain in the shared server handler.
  */
 export default async function handler(req: Request, res: Response) {
+  res = adaptExpressResponse(res);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-store');
 
