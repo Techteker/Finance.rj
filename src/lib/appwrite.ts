@@ -24,7 +24,8 @@ export const APPWRITE_PROJECT_ID = (env.VITE_APPWRITE_PROJECT_ID ?? '').trim();
 export const APPWRITE_DEFAULT_BUCKET_ID = (env.VITE_APPWRITE_BUCKET_ID ?? '').trim();
 
 const BUCKET_ENV_OVERRIDES: Record<StorageBucketKey, string | undefined> = {
-  'profile-images': env.VITE_APPWRITE_BUCKET_PROFILE_IMAGES?.trim(),
+  // The Appwrite project currently has one bucket; profile images share it under a logical namespace.
+  'profile-images': env.VITE_APPWRITE_BUCKET_PROFILE_IMAGES?.trim() || 'forword-media',
   'news-images': env.VITE_APPWRITE_BUCKET_NEWS_IMAGES?.trim(),
   'brand-logos': env.VITE_APPWRITE_BUCKET_BRAND_LOGOS?.trim(),
   'offer-banners': env.VITE_APPWRITE_BUCKET_OFFER_BANNERS?.trim(),
@@ -46,7 +47,8 @@ export const appwriteStorage = new Storage(appwriteClient);
 
 export const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export const ALLOWED_DOCUMENT_MIME_TYPES = ['application/pdf', ...ALLOWED_IMAGE_MIME_TYPES] as const;
-export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB for editorial images
+export const MAX_PROFILE_IMAGE_SIZE_BYTES = 200 * 1024; // hard 200 KB profile-photo limit
 export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 const SAFE_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
@@ -125,8 +127,11 @@ export function validateClientFile(
   bucket: StorageBucketKey,
 ): { ok: true } | { ok: false; error: string } {
   const isDoc = bucket === 'documents';
-  const allowed: readonly string[] = isDoc ? ALLOWED_DOCUMENT_MIME_TYPES : ALLOWED_IMAGE_MIME_TYPES;
-  const maxSize = isDoc ? MAX_DOCUMENT_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
+  const isProfile = bucket === 'profile-images';
+  const allowed: readonly string[] = isDoc
+    ? ALLOWED_DOCUMENT_MIME_TYPES
+    : isProfile ? ['image/jpeg'] : ALLOWED_IMAGE_MIME_TYPES;
+  const maxSize = isDoc ? MAX_DOCUMENT_SIZE_BYTES : isProfile ? MAX_PROFILE_IMAGE_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
 
   if (!file.type || !allowed.includes(file.type.toLowerCase())) {
     return {
@@ -137,8 +142,8 @@ export function validateClientFile(
     };
   }
   if (file.size <= 0 || file.size > maxSize) {
-    const maxMb = Math.round(maxSize / (1024 * 1024));
-    return { ok: false, error: `File size must be under ${maxMb} MB.` };
+    const limit = isProfile ? '200 KB' : `${Math.round(maxSize / (1024 * 1024))} MB`;
+    return { ok: false, error: `File size must be under ${limit}.` };
   }
   return { ok: true };
 }
@@ -160,20 +165,62 @@ async function parseStorageResponse<T>(res: Response): Promise<T> {
   return data;
 }
 
+
+/** Resize and re-encode profile photos before upload; the returned JPEG is always <= 200 KB. */
+export async function compressProfileImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) throw new Error('Please choose a valid image.');
+  if (typeof createImageBitmap !== 'function') {
+    throw new Error('This browser cannot compress images. Please use an updated browser.');
+  }
+  const bitmap = await createImageBitmap(file);
+  try {
+    const maxBytes = MAX_PROFILE_IMAGE_SIZE_BYTES;
+    const dimensions = [512, 448, 384, 320, 256, 192];
+    const qualities = [0.86, 0.80, 0.74, 0.68, 0.62, 0.56, 0.50, 0.44, 0.38];
+    for (const maxDimension of dimensions) {
+      const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Image compression is unavailable on this device.');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, width, height);
+      context.drawImage(bitmap, 0, 0, width, height);
+      for (const quality of qualities) {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+        if (blob && blob.size > 0 && blob.size <= maxBytes) {
+          const baseName = file.name.replace(/\.[^.]+$/, '') || 'profile-photo';
+          return new File([blob], `${baseName}.jpg`, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+        }
+      }
+    }
+  } finally {
+    bitmap.close();
+  }
+  throw new Error('Could not compress this photo below 200 KB. Please choose another image.');
+}
+
 /** Upload a file through the authenticated backend proxy to Appwrite Storage. */
 export async function uploadStorageFile(
   file: File,
   bucket: StorageBucketKey,
   meta?: { entityType?: string; entityId?: string },
 ): Promise<UploadedStorageFile> {
-  const check = validateClientFile(file, bucket);
+  const uploadFile = bucket === 'profile-images' ? await compressProfileImage(file) : file;
+  const check = validateClientFile(uploadFile, bucket);
   if (!check.ok) throw new Error(check.error);
 
   const token = await getAccessToken();
   if (!token) throw new Error('Please sign in to upload files.');
 
   const form = new FormData();
-  form.append('file', file);
+  form.append('file', uploadFile);
   form.append('bucket', bucket);
   if (meta?.entityType) form.append('entityType', meta.entityType);
   if (meta?.entityId) form.append('entityId', meta.entityId);
