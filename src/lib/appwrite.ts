@@ -240,14 +240,15 @@ export async function replaceStorageFile(
   bucket: StorageBucketKey,
   meta?: { entityType?: string; entityId?: string },
 ): Promise<UploadedStorageFile> {
-  const check = validateClientFile(file, bucket);
+  const uploadFile = bucket === 'profile-images' ? await compressProfileImage(file) : file;
+  const check = validateClientFile(uploadFile, bucket);
   if (!check.ok) throw new Error(check.error);
 
   const token = await getAccessToken();
   if (!token) throw new Error('Please sign in to replace files.');
 
   const form = new FormData();
-  form.append('file', file);
+  form.append('file', uploadFile);
   form.append('bucket', bucket);
   if (meta?.entityType) form.append('entityType', meta.entityType);
   if (meta?.entityId) form.append('entityId', meta.entityId);
