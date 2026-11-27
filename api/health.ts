@@ -1,6 +1,8 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Request, Response } from 'express';
+import { adaptExpressResponse } from '../server/vercelResponse';
 
-export default function handler(_req: IncomingMessage, res: ServerResponse) {
+export default function handler(_req: Request, res: Response) {
+  res = adaptExpressResponse(res);
   const body = {
     ok: true,
     services: {
@@ -15,8 +17,5 @@ export default function handler(_req: IncomingMessage, res: ServerResponse) {
       ),
     },
   };
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.end(JSON.stringify(body));
+  return res.status(200).json(body);
 }
