@@ -123,7 +123,7 @@ export function Page({ title, back, right, logo, tab, cta, children, big, wide, 
       <TopNav onOpenMenu={() => setMenuOpen(true)} menuOpen={menuOpen} />
       <SideMenuDrawer open={menuOpen} onClose={closeMenu} />
       <div className={`mx-auto w-full px-4 ${wide ? 'max-w-5xl' : 'max-w-3xl'}`}>
-        <div className="flex items-center gap-2.5 pb-3 pt-[max(env(safe-area-inset-top),12px)] md:pt-5">
+        <div className="flex items-center gap-2.5 pb-3 pt-1 md:pt-5">
           {back && <button onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))} aria-label={t('nav.back')} className="shrink-0 rounded-full bg-surface p-2"><ChevronLeft size={20} /></button>}
           {logo && (
             <button
