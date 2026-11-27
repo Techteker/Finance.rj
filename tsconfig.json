@@ -16,8 +16,7 @@
     "resolveJsonModule": true,
     "types": [
       "vite/client"
-    ],
-    "allowImportingTsExtensions": true
+    ]
   },
   "include": [
     "src"
