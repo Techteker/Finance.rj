@@ -23,14 +23,8 @@ export const APPWRITE_ENDPOINT = (env.VITE_APPWRITE_ENDPOINT ?? '').trim().repla
 export const APPWRITE_PROJECT_ID = (env.VITE_APPWRITE_PROJECT_ID ?? '').trim();
 export const APPWRITE_DEFAULT_BUCKET_ID = (env.VITE_APPWRITE_BUCKET_ID ?? '').trim();
 
-const BUCKET_ENV_OVERRIDES: Record<StorageBucketKey, string | undefined> = {
-  'profile-images': env.VITE_APPWRITE_BUCKET_PROFILE_IMAGES?.trim(),
-  'news-images': env.VITE_APPWRITE_BUCKET_NEWS_IMAGES?.trim(),
-  'brand-logos': env.VITE_APPWRITE_BUCKET_BRAND_LOGOS?.trim(),
-  'offer-banners': env.VITE_APPWRITE_BUCKET_OFFER_BANNERS?.trim(),
-  'product-images': env.VITE_APPWRITE_BUCKET_PRODUCT_IMAGES?.trim(),
-  documents: env.VITE_APPWRITE_BUCKET_DOCUMENTS?.trim(),
-};
+// All logical media categories share one physical Appwrite bucket.
+// The category remains in Supabase metadata; the physical bucket is forword-media.
 
 // Clear any legacy browser-stored Appwrite overrides.
 safeStorageRemove('local', 'forword:appwrite-config');
@@ -51,8 +45,8 @@ export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 const SAFE_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 
-export function resolveBucketId(bucket: StorageBucketKey): string {
-  return BUCKET_ENV_OVERRIDES[bucket] || bucket || APPWRITE_DEFAULT_BUCKET_ID;
+export function resolveBucketId(_bucket: StorageBucketKey): string {
+  return APPWRITE_DEFAULT_BUCKET_ID || 'forword-media';
 }
 
 /**
