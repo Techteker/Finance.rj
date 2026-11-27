@@ -1,12 +1,11 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { Request, Response } from 'express';
 import { rewardsRouteHandler } from '../server/rewardsService.ts';
 
 /**
- * Vercel Node.js function adapter for the existing server-verified rewards
- * handler. Authentication, validation, idempotency and ledger writes remain
- * centralized in server/rewardsService.ts.
+ * Vercel Node.js function adapter. All authorization, reward validation,
+ * idempotency and ledger mutations remain in the shared server handler.
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: Request, res: Response) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-store');
 
@@ -15,9 +14,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed.' });
   }
 
-  // Vercel supplies a parsed JSON body for application/json requests.
-  return rewardsRouteHandler(
-    req as unknown as Parameters<typeof rewardsRouteHandler>[0],
-    res as unknown as Parameters<typeof rewardsRouteHandler>[1],
-  );
+  return rewardsRouteHandler(req, res);
 }
