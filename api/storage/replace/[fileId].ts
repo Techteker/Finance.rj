@@ -1,6 +1,6 @@
 import multer from 'multer';
 import type { Request, Response } from 'express';
-import { replaceStorageRouteHandler } from '../../../server/storageService.ts';
+import { replaceStorageRouteHandler } from '../../../server/storageService';
 
 const upload = multer({
   storage: multer.memoryStorage(),
