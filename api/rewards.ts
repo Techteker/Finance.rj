@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { rewardsRouteHandler } from '../server/rewardsService.ts';
+import { rewardsRouteHandler } from '../server/rewardsService.js';
 
 /**
  * Vercel Node.js function adapter. All authorization, reward validation,
