@@ -19,7 +19,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|demo/|favicon\\.svg|og-image\\.jpg|robots\\.txt|sitemap-index\\.xml|sitemap\\.xml|sitemap-news\\.xml|sitemap-images\\.xml).*)",
+      "source": "/((?!api/|assets/|demo/|favicon\\.svg|og-image\\.jpg|robots\\.txt|sitemap-index\\.xml|sitemap\\.xml|sitemap-news\\.xml|sitemap-images\\.xml).*)",
       "destination": "/index.html"
     }
   ],
