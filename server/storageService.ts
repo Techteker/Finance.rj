@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { Request, Response } from 'express';
 import { Client, ID, Permission, Role, Storage } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
-import { getSupabaseAdmin, verifySupabaseSession, type VerifiedSession } from './supabaseAdmin.ts';
+import { getSupabaseAdmin, verifySupabaseSession, type VerifiedSession } from './supabaseAdmin';
 
 export const ALLOWED_BUCKETS = [
   'profile-images',
