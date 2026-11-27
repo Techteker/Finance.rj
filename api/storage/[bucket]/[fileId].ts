@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { deleteStorageRouteHandler } from '../../../server/storageService.ts';
+import { deleteStorageRouteHandler } from '../../../server/storageService';
 
 export default async function handler(req: Request, res: Response) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
