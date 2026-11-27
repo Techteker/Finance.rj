@@ -2,7 +2,7 @@
   "name": "forword-app",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.ts",
