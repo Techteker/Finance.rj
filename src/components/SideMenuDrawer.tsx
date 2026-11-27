@@ -19,6 +19,7 @@ import {
 import { CATEGORIES, NEWS_CATEGORIES, OFFER_CATEGORIES } from '../lib/menu';
 import { CALCS } from '../lib/calc';
 import { useI18n } from '../hooks/i18n';
+import { useAuth } from '../hooks/auth';
 
 interface SubMenuItem {
   label: string;
@@ -47,6 +48,7 @@ const CAT_ICONS: Record<string, LucideIcon> = {
 export function SideMenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { pathname } = useLocation();
   const { t, tCategory, tNewsCategory, tOfferCategory, tCalc } = useI18n();
+  const { user } = useAuth();
   const [activeId, setActiveId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -235,6 +237,37 @@ export function SideMenuDrawer({ open, onClose }: { open: boolean; onClose: () =
             </ul>
           )}
         </nav>
+
+        {!activeSection && (
+          <div className="shrink-0 border-t border-line bg-white p-4 pb-[max(env(safe-area-inset-bottom),16px)]">
+            {user ? (
+              <Link
+                to="/profile"
+                onClick={onClose}
+                className="flex h-12 w-full items-center justify-center rounded-full bg-pri px-5 text-sm font-bold text-white transition-colors hover:bg-pri-dark"
+              >
+                My account
+              </Link>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Link
+                  to="/login"
+                  onClick={onClose}
+                  className="flex h-12 items-center justify-center rounded-full border border-pri px-4 text-sm font-bold text-pri-dark transition-colors hover:bg-mint"
+                >
+                  Log in
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={onClose}
+                  className="flex h-12 items-center justify-center rounded-full bg-pri px-4 text-sm font-bold text-white transition-colors hover:bg-pri-dark"
+                >
+                  Sign up
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
