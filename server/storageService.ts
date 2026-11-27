@@ -24,7 +24,8 @@ const ADMIN_ONLY_BUCKETS = new Set<LogicalBucket>([
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const DOCUMENT_MIME_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB for editorial images
+const MAX_PROFILE_IMAGE_BYTES = 200 * 1024; // strict profile-photo limit
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024; // 10 MB
 const SAFE_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 
@@ -48,7 +49,7 @@ export function getAppwriteStorageConfig() {
 
 export function resolveServerBucketId(bucket: LogicalBucket): string {
   const envMap: Record<LogicalBucket, string | undefined> = {
-    'profile-images': process.env.VITE_APPWRITE_BUCKET_PROFILE_IMAGES,
+    'profile-images': process.env.VITE_APPWRITE_BUCKET_PROFILE_IMAGES || 'forword-media',
     'news-images': process.env.VITE_APPWRITE_BUCKET_NEWS_IMAGES,
     'brand-logos': process.env.VITE_APPWRITE_BUCKET_BRAND_LOGOS,
     'offer-banners': process.env.VITE_APPWRITE_BUCKET_OFFER_BANNERS,
@@ -113,16 +114,17 @@ export function validateServerUpload(
     return { ok: false, status: 400, error: 'A valid file is required.' };
   }
   const isDoc = bucket === 'documents';
-  const maxBytes = isDoc ? MAX_DOCUMENT_BYTES : MAX_IMAGE_BYTES;
+  const isProfile = bucket === 'profile-images';
+  const maxBytes = isDoc ? MAX_DOCUMENT_BYTES : isProfile ? MAX_PROFILE_IMAGE_BYTES : MAX_IMAGE_BYTES;
   if (file.size > maxBytes || file.buffer.length > maxBytes) {
     return {
       ok: false,
       status: 413,
-      error: `File exceeds the ${Math.round(maxBytes / (1024 * 1024))} MB upload limit.`,
+      error: isProfile ? 'Profile photos must be 200 KB or smaller.' : `File exceeds the ${Math.round(maxBytes / (1024 * 1024))} MB upload limit.`,
     };
   }
   const declared = String(file.mimetype || '').toLowerCase().trim();
-  const allowed = isDoc ? DOCUMENT_MIME_TYPES : IMAGE_MIME_TYPES;
+  const allowed = isDoc ? DOCUMENT_MIME_TYPES : isProfile ? new Set(['image/jpeg']) : IMAGE_MIME_TYPES;
   if (!allowed.has(declared)) {
     return {
       ok: false,
