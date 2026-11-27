@@ -95,7 +95,6 @@ const Maintenance = lazyNamed(loadUtility, 'Maintenance');
 const NotFound = lazyNamed(loadUtility, 'NotFound');
 const CookieSettings = lazyNamed(loadUtility, 'CookieSettings');
 const CookieBanner = lazyNamed(loadUtility, 'CookieBanner');
-const AdminSeoAudit = lazyNamed(() => import('./pages/adminSeo'), 'AdminSeoAudit');
 
 function RouteFallback() {
   return (
@@ -233,7 +232,6 @@ export default function App() {
                     <Route path="/privacy" element={<Privacy />} />
                     <Route path="/offline" element={<Offline />} />
                     <Route path="/maintenance" element={<Maintenance />} />
-                    <Route path="/admin/seo" element={<AdminSeoAudit />} />
 
                     {/* Keep last: /:category/:subcategory, e.g. /credit-cards/best-credit-cards */}
                     <Route path="/:cat/:sub" element={<SubcategoryPage />} />
