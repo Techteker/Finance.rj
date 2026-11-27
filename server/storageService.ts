@@ -36,7 +36,7 @@ export function getAppwriteStorageConfig() {
   const endpoint = (process.env.APPWRITE_ENDPOINT || process.env.VITE_APPWRITE_ENDPOINT || '').trim().replace(/\/+$/, '');
   const projectId = (process.env.APPWRITE_PROJECT_ID || process.env.VITE_APPWRITE_PROJECT_ID || '').trim();
   const apiKey = (process.env.APPWRITE_API_KEY || '').trim();
-  const defaultBucketId = (process.env.VITE_APPWRITE_BUCKET_ID || '').trim();
+  const defaultBucketId = (process.env.APPWRITE_BUCKET_ID || process.env.VITE_APPWRITE_BUCKET_ID || 'forword-media').trim();
   return {
     endpoint,
     projectId,
@@ -46,16 +46,9 @@ export function getAppwriteStorageConfig() {
   };
 }
 
-export function resolveServerBucketId(bucket: LogicalBucket): string {
-  const envMap: Record<LogicalBucket, string | undefined> = {
-    'profile-images': process.env.VITE_APPWRITE_BUCKET_PROFILE_IMAGES,
-    'news-images': process.env.VITE_APPWRITE_BUCKET_NEWS_IMAGES,
-    'brand-logos': process.env.VITE_APPWRITE_BUCKET_BRAND_LOGOS,
-    'offer-banners': process.env.VITE_APPWRITE_BUCKET_OFFER_BANNERS,
-    'product-images': process.env.VITE_APPWRITE_BUCKET_PRODUCT_IMAGES,
-    documents: process.env.VITE_APPWRITE_BUCKET_DOCUMENTS,
-  };
-  return (envMap[bucket] || bucket || process.env.VITE_APPWRITE_BUCKET_ID || '').trim();
+export function resolveServerBucketId(_bucket: LogicalBucket): string {
+  // Every logical category maps to the single configured physical bucket.
+  return (process.env.APPWRITE_BUCKET_ID || process.env.VITE_APPWRITE_BUCKET_ID || 'forword-media').trim();
 }
 
 /** Verifies file header magic bytes match the declared MIME type to block spoofed HTML/SVG/script uploads. */
