@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
-import { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession, type VerifiedSession } from './supabaseAdmin.js';
+import { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession, type VerifiedSession } from './supabaseAdmin.ts';
 
 export const REWARD_RULES = {
   CHECKIN_COINS: Math.max(0, Number(process.env.CHECKIN_COINS || 5)),
