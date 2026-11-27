@@ -1,0 +1,18 @@
+# Local dependencies & build output
+node_modules
+dist
+
+# Local environment secrets (configure in Vercel Project Settings instead)
+.env
+.env.local
+.env.*.local
+
+# Non-frontend / Appwrite CLI & server function code
+scripts
+functions
+
+# Local tests, browser captures & editor files
+**/*.test.ts
+.playwright-cli
+.aistudio
+.DS_Store

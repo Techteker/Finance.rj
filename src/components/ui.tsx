@@ -1,6 +1,8 @@
-import { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, useEffect, useRef, useState } from 'react';
+import { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Inbox, X } from 'lucide-react';
+import { AlertTriangle, ChevronRight, X } from 'lucide-react';
+import { safeUrl } from '../lib/format';
+import { useI18n } from '../hooks/i18n';
 import { IconBadge } from './Icon';
 
 type BtnProps = { variant?: 'primary' | 'outline' | 'accent' | 'ghost'; to?: string; href?: string; icon?: ReactNode; full?: boolean; className?: string; children: ReactNode } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'children'>;
@@ -9,7 +11,11 @@ export function Btn({ variant = 'primary', to, href, icon, full = true, classNam
   const cls = `inline-flex items-center justify-center gap-2 rounded-btn px-5 py-3.5 text-[15px] font-bold transition-colors disabled:opacity-50 ${full ? 'w-full' : ''} ${v} ${className}`;
   const inner = <>{icon}{children}</>;
   if (to) return <Link to={to} className={cls}>{inner}</Link>;
-  if (href) return <a href={href} target="_blank" rel="noopener noreferrer sponsored" className={cls}>{inner}</a>;
+  if (href) {
+    const validatedHref = safeUrl(href);
+    if (!validatedHref) return <button type="button" disabled className={cls}>{inner}</button>;
+    return <a href={validatedHref} target="_blank" rel="noopener noreferrer sponsored" className={cls}>{inner}</a>;
+  }
   return <button className={cls} {...rest}>{inner}</button>;
 }
 
@@ -54,11 +60,12 @@ export function Chips({ items, value, onChange }: { items: string[]; value: numb
   );
 }
 
-export function SectionHeader({ title, to, link = 'See all' }: { title: string; to?: string; link?: string }) {
+export function SectionHeader({ title, to, link }: { title: string; to?: string; link?: string }) {
+  const { t } = useI18n();
   return (
     <div className="flex items-center justify-between pt-2">
       <h2 className="text-[17px] font-bold">{title}</h2>
-      {to && <Link to={to} className="text-[13px] font-semibold text-pri-dark">{link}</Link>}
+      {to && <Link to={to} className="text-[13px] font-semibold text-pri-dark">{link ?? t('common.seeAll')}</Link>}
     </div>
   );
 }
@@ -101,12 +108,13 @@ export function EmptyState({ icon = 'news', title, text, action }: { icon?: stri
   );
 }
 export function ErrorState({ text, onRetry }: { text?: string; onRetry?: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="mx-auto flex max-w-sm flex-col items-center gap-3 py-14 text-center" role="alert">
       <span className="flex h-24 w-24 items-center justify-center rounded-full bg-danger/10 text-danger"><AlertTriangle size={44} /></span>
-      <h2 className="text-xl font-bold">Could not load this page</h2>
-      <p className="text-sm text-slate">{text || 'Check your connection and try again.'}</p>
-      {onRetry && <Btn onClick={onRetry}>Retry</Btn>}
+      <h2 className="text-xl font-bold">{t('common.errorTitle')}</h2>
+      <p className="text-sm text-slate">{text || t('common.errorFallback')}</p>
+      {onRetry && <Btn onClick={onRetry}>{t('common.retry')}</Btn>}
     </div>
   );
 }
@@ -121,7 +129,13 @@ export function Async<T>({ state, empty, children, skeleton = 5 }: { state: { da
 
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (open) ref.current?.focus(); const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [open, onClose]);
+  useEffect(() => {
+    if (!open) return;
+    ref.current?.focus();
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [open, onClose]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
@@ -138,17 +152,30 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
 export function OtpInput({ value, onChange, length = 6 }: { value: string; onChange: (v: string) => void; length?: number }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const set = (i: number, c: string) => {
-    const d = c.replace(/\D/g, '').slice(-1);
-    const arr = value.padEnd(length, ' ').split('');
-    arr[i] = d || ' ';
-    onChange(arr.join('').trimEnd().replace(/ /g, ''));
-    if (d && i < length - 1) refs.current[i + 1]?.focus();
+    const digits = c.replace(/\D/g, '');
+    if (digits.length > 1) {
+      const merged = digits.slice(0, length);
+      onChange(merged);
+      refs.current[Math.min(merged.length, length - 1)]?.focus();
+      return;
+    }
+    const arr = Array.from({ length }, (_, idx) => value[idx] ?? '');
+    arr[i] = digits;
+    onChange(arr.join(''));
+    if (digits && i < length - 1) refs.current[i + 1]?.focus();
   };
   return (
     <div className="flex justify-center gap-2.5" role="group" aria-label="One-time password">
       {Array.from({ length }).map((_, i) => (
-        <input key={i} ref={(el) => (refs.current[i] = el)} inputMode="numeric" maxLength={1} value={value[i] ?? ''} aria-label={`Digit ${i + 1}`}
+        <input key={i} ref={(el) => (refs.current[i] = el)} inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'} maxLength={length} value={value[i] ?? ''} aria-label={`Digit ${i + 1}`}
           onChange={(e) => set(i, e.target.value)}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
+            if (!pasted) return;
+            e.preventDefault();
+            onChange(pasted);
+            refs.current[Math.min(pasted.length, length - 1)]?.focus();
+          }}
           onKeyDown={(e) => { if (e.key === 'Backspace' && !value[i] && i > 0) refs.current[i - 1]?.focus(); }}
           className={`h-14 w-12 rounded-xl border text-center text-xl font-bold outline-none focus:border-pri ${value[i] ? 'border-pri bg-mint text-pri-dark' : 'border-line'}`} />
       ))}
@@ -156,21 +183,24 @@ export function OtpInput({ value, onChange, length = 6 }: { value: string; onCha
   );
 }
 
-export function Dialog({ open, title, text, confirm, onConfirm, onClose }: { open: boolean; title: string; text: string; confirm: string; onConfirm: () => void; onClose: () => void }) {
+export function Dialog({ open, title, text, confirm, onConfirm, onClose, busy = false }: { open: boolean; title: string; text: string; confirm: string; onConfirm: () => void; onClose: () => void; busy?: boolean }) {
+  const { t } = useI18n();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    ref.current?.focus();
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [open, busy, onClose]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <button aria-label="Close" className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div role="alertdialog" aria-label={title} className="relative w-full max-w-sm space-y-3 rounded-3xl bg-white p-5 shadow-card">
+      <button type="button" aria-label={t('nav.close')} className="absolute inset-0 bg-black/40" onClick={() => !busy && onClose()} />
+      <div ref={ref} tabIndex={-1} role="alertdialog" aria-modal="true" aria-label={title} className="relative w-full max-w-sm space-y-3 rounded-3xl bg-white p-5 shadow-card outline-none">
         <h2 className="text-lg font-bold">{title}</h2><p className="text-sm text-slate">{text}</p>
-        <div className="flex gap-2.5"><Btn variant="outline" onClick={onClose}>Cancel</Btn><Btn onClick={onConfirm}>{confirm}</Btn></div>
+        <div className="flex gap-2.5"><Btn type="button" variant="outline" disabled={busy} onClick={onClose}>{t('common.cancel')}</Btn><Btn type="button" disabled={busy} onClick={onConfirm}>{confirm}</Btn></div>
       </div>
     </div>
   );
 }
-
-export function useCopy() {
-  const [done, setDone] = useState(false);
-  return { done, copy: async (t: string) => { try { await navigator.clipboard.writeText(t); setDone(true); setTimeout(() => setDone(false), 2000); return true; } catch { return false; } } };
-}
-export const NoResultsIcon = Inbox;

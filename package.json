@@ -4,28 +4,37 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
+    "start": "node server.ts",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "setup:appwrite": "node scripts/setup-appwrite.mjs"
+    "lint": "tsc --noEmit",
+    "seo:sitemaps": "node scripts/generate-sitemaps.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
     "appwrite": "^16.0.0",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
     "lucide-react": "^0.453.0",
+    "multer": "^2.5.0",
+    "node-appwrite": "^14.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.27.0"
+    "react-router-dom": "^7.18.7",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.3",
+    "@vitejs/plugin-react": "^6.3.0",
     "autoprefixer": "^10.4.20",
-    "node-appwrite": "^14.0.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
-    "vite": "^5.4.10"
+    "vite": "^8.3.8"
   }
 }

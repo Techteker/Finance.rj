@@ -4,14 +4,14 @@ const inline = (s: string): ReactNode[] =>
   s.split(/(\*\*[^*]+\*\*)/g).map((p, i) => (p.startsWith('**') && p.endsWith('**') ? <strong key={i}>{p.slice(2, -2)}</strong> : p));
 
 export const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-export const headings = (body: string) => body.split('\n').filter((l) => l.startsWith('## ')).map((l) => l.slice(3).trim());
+export const headings = (body = '') => String(body || '').split('\n').filter((l) => l.startsWith('## ')).map((l) => l.slice(3).trim());
 
 /** Minimal, safe renderer: ## / ### headings, "- " lists, **bold**, paragraphs. No raw HTML. */
-export function Prose({ body }: { body: string }) {
+export function Prose({ body = '' }: { body?: string }) {
   const out: ReactNode[] = [];
   let list: string[] = [];
   const flush = () => { if (list.length) { out.push(<ul key={out.length} className="list-disc space-y-1.5 pl-5">{list.map((l, i) => <li key={i}>{inline(l)}</li>)}</ul>); list = []; } };
-  body.split(/\n{1,}/).forEach((raw) => {
+  String(body || '').split(/\n{1,}/).forEach((raw) => {
     const l = raw.trim();
     if (!l) return;
     if (l.startsWith('- ')) { list.push(l.slice(2)); return; }

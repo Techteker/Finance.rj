@@ -22,7 +22,9 @@ export const TAX_YEARS: TaxYear[] = [
 
 export function computeTax(year: TaxYear, regime: 'new' | 'old', income: number, deductions: number) {
   const r = year[regime];
-  const taxable = Math.max(0, income - r.stdDeduction - (regime === 'old' ? deductions : 0));
+  const safeIncome = Number.isFinite(income) && income > 0 ? income : 0;
+  const safeDeductions = Number.isFinite(deductions) && deductions > 0 ? deductions : 0;
+  const taxable = Math.max(0, safeIncome - r.stdDeduction - (regime === 'old' ? safeDeductions : 0));
   let tax = 0;
   let prev = 0;
   for (const s of r.slabs) {

@@ -11,8 +11,9 @@ export interface CalcDef {
 const f = (key: string, label: string, min: number, max: number, step: number, def: number, unit: Field['unit']): Field => ({ key, label, min, max, step, def, unit });
 
 export function emi(p: number, annualRate: number, years: number) {
+  if (!Number.isFinite(p) || p <= 0 || !Number.isFinite(years) || years <= 0) return 0;
   const n = Math.round(years * 12);
-  const r = annualRate / 12 / 100;
+  const r = (Number.isFinite(annualRate) && annualRate > 0 ? annualRate : 0) / 12 / 100;
   if (n <= 0) return 0;
   if (r === 0) return p / n;
   const g = Math.pow(1 + r, n);
@@ -60,7 +61,7 @@ export const CALCS: CalcDef[] = [
   { slug: 'savings-goal-calculator', title: 'Savings Goal Calculator', desc: 'Monthly saving needed to reach a goal.', icon: 'star',
     fields: [f('goal', 'Goal amount', 10000, 500000000, 10000, 1000000, 'inr'), f('rate', 'Expected return (p.a.)', 0, 20, 0.5, 7, 'pct'), f('years', 'Years', 1, 40, 1, 5, 'yr')],
     assumptions: ['Monthly investing at the start of each month.', 'Constant return; not guaranteed.'],
-    compute: (v) => { const i = v.rate / 12 / 100; const n = v.years * 12; const m = i === 0 ? v.goal / n : (v.goal * i) / ((Math.pow(1 + i, n) - 1) * (1 + i));
+    compute: (v) => { const i = v.rate / 12 / 100; const n = Math.round(v.years * 12); const m = n <= 0 ? 0 : i === 0 ? v.goal / n : (v.goal * i) / ((Math.pow(1 + i, n) - 1) * (1 + i));
       return { label: 'Monthly saving needed', value: inr(m), rows: [['Goal', inr(v.goal)], ['Total contributed', inr(m * n)]], split: { a: m * n, b: Math.max(0, v.goal - m * n) } }; } },
   { slug: 'retirement-calculator', title: 'Retirement Calculator', desc: 'Corpus needed to fund your expenses.', icon: 'clock',
     fields: [f('age', 'Current age', 18, 70, 1, 30, 'num'), f('retire', 'Retirement age', 40, 75, 1, 60, 'num'), f('expense', 'Monthly expense today', 5000, 1000000, 1000, 50000, 'inr'), f('inflation', 'Inflation (p.a.)', 1, 15, 0.5, 6, 'pct'), f('post', 'Return after retirement (p.a.)', 1, 15, 0.5, 8, 'pct'), f('span', 'Years in retirement', 10, 45, 1, 25, 'yr')],

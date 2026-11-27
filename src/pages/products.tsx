@@ -9,6 +9,15 @@ import { useCompare } from '../hooks/app';
 import { Page } from '../components/layout';
 import { Async, Btn, Chips, EmptyState, ErrorState, Field, ListRow, SectionHeader, Segmented, Sheet, Skeleton } from '../components/ui';
 import { CompareBar, NewsCard, ProductCard, SaveButton, Thumb } from '../components/cards';
+import {
+  buildCollectionJsonLd,
+  buildHowToJsonLd,
+  buildItemListJsonLd,
+  buildProductJsonLd,
+  buildProductKeywords,
+  buildSubcategoryKeywords,
+  buildWebPageJsonLd,
+} from '../lib/seo';
 import { NotFound } from './utility';
 import type { Product } from '../types';
 
@@ -20,7 +29,11 @@ function sortProducts(list: Product[], s: number) {
   const a = [...list];
   if (s === 1) a.sort((x, y) => (x.feeValue ?? Infinity) - (y.feeValue ?? Infinity));
   else if (s === 2) a.sort((x, y) => (y.rewardRate ?? 0) - (x.rewardRate ?? 0));
-  else if (s === 3) a.sort((x, y) => new Date(y.verifiedAt).getTime() - new Date(x.verifiedAt).getTime());
+  else if (s === 3) a.sort((x, y) => {
+    const ty = new Date(y.verifiedAt ?? '').getTime();
+    const tx = new Date(x.verifiedAt ?? '').getTime();
+    return (Number.isFinite(ty) ? ty : 0) - (Number.isFinite(tx) ? tx : 0);
+  });
   return a;
 }
 
@@ -40,11 +53,46 @@ function ProductList({ catSlug, subSlug, title }: { catSlug: string; subSlug: st
   const [sort, setSort] = useState(0);
   const [open, setOpen] = useState(false);
   const [f, setF] = useState<Filters>(NO_FILTERS);
-  const banks = useMemo(() => Array.from(new Set((state.data ?? []).map((p) => p.bankName))).sort(), [state.data]);
-  const shown = useMemo(() => sortProducts((state.data ?? []).filter((p) =>
-    (!f.bank || p.bankName === f.bank) && (!f.maxFee || (p.feeValue ?? 0) <= Number(f.maxFee)) && (!f.minReward || (p.rewardRate ?? 0) >= Number(f.minReward)) && (!f.customer || p.customerTypes?.includes(f.customer))), sort), [state.data, f, sort]);
+  const banks = useMemo(() => Array.from(new Set((state.data ?? []).map((p) => p.bankName).filter((b): b is string => Boolean(b && b.trim())))).sort(), [state.data]);
+  const shown = useMemo(() => {
+    const maxFeeNum = f.maxFee.trim() === '' ? null : Number(f.maxFee);
+    const minRewardNum = f.minReward.trim() === '' ? null : Number(f.minReward);
+    return sortProducts((state.data ?? []).filter((p) =>
+      (!f.bank || p.bankName === f.bank) &&
+      (maxFeeNum === null || !Number.isFinite(maxFeeNum) || (p.feeValue ?? 0) <= maxFeeNum) &&
+      (minRewardNum === null || !Number.isFinite(minRewardNum) || (p.rewardRate ?? 0) >= minRewardNum) &&
+      (!f.customer || p.customerTypes?.includes(f.customer))
+    ), sort);
+  }, [state.data, f, sort]);
+  const catName = findCat(catSlug)?.label ?? catSlug.replace(/-/g, ' ');
+  const listDesc = `Compare verified ${title.toLowerCase()} in India on FORWORD. Check annual fees, interest rates, rewards, benefits, and eligibility side by side.`;
+  const origin = window.location.origin;
+  const listSchemas: Record<string, unknown>[] = [
+    buildCollectionJsonLd(origin, { name: title, description: listDesc, path: `/${catSlug}/${subSlug}` }),
+  ];
+  if (shown.length) {
+    listSchemas.push(
+      buildItemListJsonLd(origin, {
+        name: `${title} – ${catName}`,
+        path: `/${catSlug}/${subSlug}`,
+        items: shown.slice(0, 15).map((p) => ({ name: p.name, path: `/product/${p.slug}`, image: p.bankLogo })),
+      }),
+    );
+  }
   return (
-    <Page title={title} back wide right={<button onClick={() => setOpen(true)} aria-label="Filters" className="rounded-full bg-surface p-2"><SlidersHorizontal size={20} /></button>}>
+    <Page
+      title={title}
+      back
+      wide
+      seo={{
+        title: `${title} – ${catName} India`,
+        description: listDesc,
+        keywords: buildSubcategoryKeywords(catSlug, title, catName),
+        breadcrumbs: [{ name: 'Home', path: '/' }, { name: catName, path: `/category/${catSlug}` }, { name: title, path: `/${catSlug}/${subSlug}` }],
+        jsonLd: listSchemas,
+      }}
+      right={<button onClick={() => setOpen(true)} aria-label="Filters" className="rounded-full bg-surface p-2"><SlidersHorizontal size={20} /></button>}
+    >
       <Chips items={SORTS} value={sort} onChange={setSort} />
       <p className="text-[13px] font-medium text-slate">{state.data ? `${shown.length} products` : ''}</p>
       <Async state={{ ...state, data: shown.length || state.loading || state.error ? shown : undefined }} empty={<EmptyState icon="card" title="No products found" text={state.data?.length ? 'Try clearing your filters.' : 'Verified products will appear here once they are approved.'} action={state.data?.length ? <Btn variant="outline" onClick={() => setF(NO_FILTERS)}>Clear filters</Btn> : undefined} />}>
@@ -67,8 +115,33 @@ function ProductList({ catSlug, subSlug, title }: { catSlug: string; subSlug: st
 
 function GuideList({ catSlug, sub, title }: { catSlug: string; sub: string; title: string }) {
   const state = useAsync(() => getNews({ category: sub, limit: 20 }), [sub]);
+  const catName = findCat(catSlug)?.label ?? catSlug.replace(/-/g, ' ');
+  const desc = `Explore Indian ${title.toLowerCase()} guides, rules, tax-saving strategies, and verified explainers under ${catName} on FORWORD.`;
+  const origin = window.location.origin;
+  const schemas: Record<string, unknown>[] = [
+    buildCollectionJsonLd(origin, { name: `${title} – ${catName}`, description: desc, path: `/${catSlug}/${sub}` }),
+  ];
+  if (state.data?.length) {
+    schemas.push(
+      buildItemListJsonLd(origin, {
+        name: `${title} Guides`,
+        path: `/${catSlug}/${sub}`,
+        items: state.data.slice(0, 15).map((n) => ({ name: n.title, path: `/news/${n.slug}`, image: n.imageUrl })),
+      }),
+    );
+  }
   return (
-    <Page title={title} back>
+    <Page
+      title={title}
+      back
+      seo={{
+        title: `${title} – ${catName} India`,
+        description: desc,
+        keywords: buildSubcategoryKeywords(catSlug, title, catName),
+        breadcrumbs: [{ name: 'Home', path: '/' }, { name: catName, path: `/category/${catSlug}` }, { name: title, path: `/${catSlug}/${sub}` }],
+        jsonLd: schemas,
+      }}
+    >
       {sub === 'tax-calculators' && <Btn to="/calculators/income-tax-calculator" variant="outline">Open income tax calculator</Btn>}
       <Async state={state} empty={<EmptyState title="No guides yet" text={`Guides for ${title.toLowerCase()} will appear here.`} />}>{(items) => <div className="space-y-3">{items.map((n) => <NewsCard key={n.$id} n={n} />)}</div>}</Async>
       <Link to={`/category/${catSlug}`} className="block text-center text-sm font-semibold text-pri-dark">Back to category</Link>
@@ -80,14 +153,27 @@ function Eligibility({ catSlug, title }: { catSlug: string; title: string }) {
   const [income, setIncome] = useState(''); const [age, setAge] = useState(''); const [run, setRun] = useState(false);
   const state = useAsync(() => (run ? getProducts({ category: catSlug }) : Promise.resolve([] as Product[])), [run, catSlug]);
   const inc = Number(income), ag = Number(age);
+  const validEligibility = Number.isFinite(inc) && inc > 0 && Number.isFinite(ag) && ag >= 18 && ag <= 100;
   const match = (state.data ?? []).filter((p) => (p.minIncome == null || inc >= p.minIncome) && (p.minAge == null || ag >= p.minAge) && (p.maxAge == null || ag <= p.maxAge));
+  const catName = findCat(catSlug)?.label ?? catSlug.replace(/-/g, ' ');
+  const desc = `Check indicative ${catName.toLowerCase()} eligibility in India based on monthly income and age without affecting your credit score on FORWORD.`;
   return (
-    <Page title={title} back>
+    <Page
+      title={title}
+      back
+      seo={{
+        title: `${title} Checker India`,
+        description: desc,
+        keywords: buildSubcategoryKeywords(catSlug, title, catName),
+        breadcrumbs: [{ name: 'Home', path: '/' }, { name: catName, path: `/category/${catSlug}` }, { name: title, path: window.location.pathname }],
+        jsonLd: buildWebPageJsonLd(window.location.origin, { name: `${title} – ${catName}`, description: desc, path: window.location.pathname }),
+      }}
+    >
       <div className="space-y-3">
         <p className="text-sm text-slate">Indicative only. Final approval is the provider’s decision and does not affect your credit score here.</p>
         <Field label="Monthly income (₹)" inputMode="numeric" placeholder="e.g. 40000" value={income} onChange={(e) => { setIncome(e.target.value); setRun(false); }} />
         <Field label="Age" inputMode="numeric" placeholder="e.g. 28" value={age} onChange={(e) => { setAge(e.target.value); setRun(false); }} />
-        <Btn disabled={!inc || !ag} onClick={() => setRun(true)}>Check eligibility</Btn>
+        <Btn disabled={!validEligibility} onClick={() => setRun(true)}>Check eligibility</Btn>
       </div>
       {run && <Async state={{ ...state, data: match }} empty={<EmptyState icon="card" title="No matching products" text="Try different details or browse all products." action={<Btn to={`/category/${catSlug}`} variant="outline">Browse category</Btn>} />}>{(items) => <div className="space-y-3">{items.map((p) => <ProductCard key={p.$id} p={p} />)}</div>}</Async>}
     </Page>
@@ -97,8 +183,20 @@ function Eligibility({ catSlug, title }: { catSlug: string; title: string }) {
 function ComparePicker({ catSlug, title }: { catSlug: string; title: string }) {
   const state = useAsync(() => getProducts({ category: catSlug }), [catSlug]);
   const cmp = useCompare();
+  const catName = findCat(catSlug)?.label ?? catSlug.replace(/-/g, ' ');
+  const desc = `Compare ${catName.toLowerCase()} side by side in India on FORWORD — evaluate fees, rates, rewards, and eligibility transparently.`;
   return (
-    <Page title={title} back>
+    <Page
+      title={title}
+      back
+      seo={{
+        title: `${title} – ${catName} India`,
+        description: desc,
+        keywords: buildSubcategoryKeywords(catSlug, title, catName),
+        breadcrumbs: [{ name: 'Home', path: '/' }, { name: catName, path: `/category/${catSlug}` }, { name: title, path: window.location.pathname }],
+        jsonLd: buildCollectionJsonLd(window.location.origin, { name: `${title} – ${catName}`, description: desc, path: window.location.pathname }),
+      }}
+    >
       <p className="text-sm text-slate">Choose 2 or 3 products to compare side by side.</p>
       <Async state={state} empty={<EmptyState title="Nothing to compare yet" text="Verified products will appear here once they are approved." />}>
         {(items) => <div>{items.map((p) => <ListRow key={p.$id} title={p.name} sub={p.bankName} onClick={() => cmp.toggle(p.$id)} right={cmp.has(p.$id) ? <Check size={18} className="text-pri-dark" /> : undefined} />)}</div>}
@@ -109,7 +207,7 @@ function ComparePicker({ catSlug, title }: { catSlug: string; title: string }) {
 }
 
 export function ComparePage() {
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const ids = (sp.get('ids') ?? '').split(',').filter(Boolean).slice(0, 3);
   const state = useAsync(() => getProductsByIds(ids), [ids.join(',')]);
   const cmp = useCompare();
@@ -121,11 +219,11 @@ export function ComparePage() {
     ['Eligibility', (p) => p.eligibility || '—'], ['Key benefits', (p) => p.benefits?.join('; ') || '—'], ['Exclusions', (p) => p.exclusions?.join('; ') || '—'], ['Last verified', (p) => shortDate(p.verifiedAt)],
   ];
   const visible = tab === 1 ? rows.filter(([l]) => /fee|rate|charge|premium|cost/i.test(l)) : tab === 2 ? rows.filter(([l]) => ['Key benefits', 'Exclusions', 'Eligibility'].includes(l)) : rows;
-  if (ids.length < 2) return <Page title="Compare" back><EmptyState icon="bars" title="Pick products to compare" text="Select 2 or 3 products from any list." action={<Btn to="/category">Browse categories</Btn>} /></Page>;
-  if (state.loading) return <Page title="Compare" back><Skeleton rows={3} /></Page>;
-  if (state.error) return <Page title="Compare" back><ErrorState text={state.error} onRetry={state.reload} /></Page>;
+  if (ids.length < 2) return <Page title="Compare Products" back seo={{ noIndex: true, description: 'Compare Indian credit cards, loans, bank accounts, and insurance side by side on FORWORD.' }}><EmptyState icon="bars" title="Pick products to compare" text="Select 2 or 3 products from any list." action={<Btn to="/category">Browse categories</Btn>} /></Page>;
+  if (state.loading) return <Page title="Compare Products" back seo={{ noIndex: true }}><Skeleton rows={3} /></Page>;
+  if (state.error) return <Page title="Compare Products" back seo={{ noIndex: true }}><ErrorState text={state.error} onRetry={state.reload} /></Page>;
   return (
-    <Page title={`Compare (${items.length})`} back wide right={<button onClick={() => { cmp.clear(); }} className="text-sm font-semibold text-pri-dark">Clear</button>}>
+    <Page title={`Compare (${items.length})`} back wide seo={{ noIndex: true, description: `Side-by-side comparison of ${items.map((p) => p.name).join(' vs ')} on FORWORD.` }} right={<button type="button" onClick={() => { cmp.clear(); setSp({}, { replace: true }); }} className="text-sm font-semibold text-pri-dark">Clear</button>}>
       <Segmented items={['Overview', 'Fees', 'Features']} value={tab} onChange={setTab} />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] border-separate border-spacing-y-1.5 text-left text-[13px]">
@@ -151,10 +249,38 @@ export function ProductDetail() {
   if (!p) return <NotFound />;
   const facts = parseFacts(p.facts);
   const List = ({ items, empty }: { items?: string[]; empty: string }) => items?.length ? <ul className="space-y-2">{items.map((s) => <li key={s} className="flex gap-2.5 text-sm"><Check size={18} className="shrink-0 text-pri-dark" />{s}</li>)}</ul> : <p className="text-sm text-slate">{empty}</p>;
+  const catName = findCat(p.category)?.label ?? (p.category ?? '').replace(/-/g, ' ');
+  const prodDesc = p.summary || `Review ${p.name} by ${p.bankName || 'Partner'} on FORWORD — check verified fees, key benefits, pros, cons, and eligibility in India.`;
   return (
-    <Page title={p.name} back right={<SaveButton type="product" id={p.$id} title={p.name} subtitle={p.bankName} imageUrl={p.bankLogo} href={`/product/${p.slug}`} className="rounded-full bg-surface !p-2" />} cta={<Btn to={`/go/${p.slug}`}>Apply on partner site</Btn>}>
+    <Page
+      title={p.name}
+      back
+      seo={{
+        description: prodDesc,
+        keywords: buildProductKeywords({ name: p.name, bankName: p.bankName, category: p.category, subcategory: p.subcategory }),
+        image: p.bankLogo,
+        imageAlt: `${p.name} by ${p.bankName}`,
+        breadcrumbs: [
+          { name: 'Home', path: '/' },
+          { name: catName, path: `/category/${p.category}` },
+          { name: p.name, path: `/product/${p.slug}` },
+        ],
+        jsonLd: buildProductJsonLd(window.location.origin, {
+          name: p.name,
+          slug: p.slug,
+          bankName: p.bankName,
+          category: p.category,
+          summary: prodDesc,
+          bankLogo: p.bankLogo,
+          feeValue: p.feeValue,
+          facts: p.facts,
+        }),
+      }}
+      right={<SaveButton type="product" id={p.$id} title={p.name} subtitle={p.bankName} imageUrl={p.bankLogo} href={`/product/${p.slug}`} className="rounded-full bg-surface !p-2" />}
+      cta={<Btn to={`/go/${p.slug}`}>Apply on partner site</Btn>}
+    >
       <div className="space-y-2 rounded-card bg-mint p-4">
-        <div className="flex items-center gap-3"><Thumb src={p.bankLogo} className="h-14 w-14 rounded-2xl bg-white" /><div><h2 className="text-lg font-bold">{p.name}</h2><p className="text-xs text-slate">{p.bankName} · {p.subcategory.replace(/-/g, ' ')}</p></div></div>
+        <div className="flex items-center gap-3"><Thumb src={p.bankLogo} alt={`${p.bankName} logo`} className="h-14 w-14 rounded-2xl bg-white" /><div><h2 className="text-lg font-bold">{p.name}</h2><p className="text-xs text-slate">{p.bankName || 'Partner'}{p.subcategory ? ` · ${p.subcategory.replace(/-/g, ' ')}` : ''}</p></div></div>
         <p className="text-[11px] font-medium text-pri-dark">Last verified {shortDate(p.verifiedAt)} · Source: provider website</p>
       </div>
       <Segmented items={['Overview', 'Features', 'Eligibility', 'Reviews']} value={tab} onChange={setTab} />
@@ -179,9 +305,40 @@ export function ApplicationGuide() {
   const { slug = '' } = useParams();
   const state = useAsync(() => getProductBySlug(slug), [slug]);
   const p = state.data;
+  if (state.loading) return <Page title="How to apply" back><Skeleton rows={2} /></Page>;
+  if (state.error) return <Page title="How to apply" back><ErrorState text={state.error} onRetry={state.reload} /></Page>;
   const steps = p?.applySteps?.length ? p.applySteps : ['Check your eligibility', 'Keep ID and income proof ready', 'Apply on the official provider site', 'Track your application'];
+  const guideTitle = p ? `How to Apply for ${p.name}` : 'How to apply';
+  const guideDesc = p
+    ? `Step-by-step online application guide for ${p.name} by ${p.bankName} in India — eligibility documents, process, and tracking tips.`
+    : 'Step-by-step guide to apply for Indian financial products safely on provider websites.';
   return (
-    <Page title="How to apply" back cta={p ? <Btn to={`/go/${p.slug}`}>Continue to partner site</Btn> : undefined}>
+    <Page
+      title="How to apply"
+      back
+      seo={{
+        title: guideTitle,
+        description: guideDesc,
+        keywords: p ? buildProductKeywords({ name: p.name, bankName: p.bankName, category: p.category, subcategory: p.subcategory }) : undefined,
+        noIndex: !p,
+        breadcrumbs: p
+          ? [
+              { name: 'Home', path: '/' },
+              { name: p.name, path: `/product/${p.slug}` },
+              { name: 'How to Apply', path: `/product/${p.slug}/guide` },
+            ]
+          : undefined,
+        jsonLd: p
+          ? buildHowToJsonLd(window.location.origin, {
+              name: guideTitle,
+              description: guideDesc,
+              path: `/product/${p.slug}/guide`,
+              steps,
+            })
+          : undefined,
+      }}
+      cta={p ? <Btn to={`/go/${p.slug}`}>Continue to partner site</Btn> : undefined}
+    >
       <h2 className="text-2xl font-bold">Apply in {steps.length} steps</h2>
       <ol className="space-y-2.5">{steps.map((s, i) => <li key={s} className="flex items-center gap-3 rounded-card border border-line p-3.5"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pri text-sm font-bold text-white">{i + 1}</span><span className="text-sm font-medium">{s}</span></li>)}</ol>
     </Page>
@@ -194,8 +351,8 @@ export function PartnerRedirect() {
   const p = state.data;
   const url = safeUrl(p?.applyUrl);
   return (
-    <Page title="Leaving FORWORD" back>
-      {state.loading ? <Skeleton rows={1} /> : !p || !url ? <EmptyState icon="card" title="Link not available" text="The official application link for this product is not available right now." action={<Btn to="/">Go to Home</Btn>} /> : (
+    <Page title="Leaving FORWORD" back seo={{ noIndex: true }}>
+      {state.loading ? <Skeleton rows={1} /> : state.error ? <ErrorState text={state.error} onRetry={state.reload} /> : !p || !url ? <EmptyState icon="card" title="Link not available" text="The official application link for this product is not available right now." action={<Btn to="/">Go to Home</Btn>} /> : (
         <EmptyState icon="card" title="You are leaving FORWORD" text="You will open the official provider site. FORWORD may earn a commission if you apply, which never affects our rankings."
           action={<div className="space-y-2.5"><Btn href={url}>Continue to {p.bankName}</Btn><Btn variant="outline" to={`/product/${p.slug}`}>Go back</Btn></div>} />
       )}
@@ -205,7 +362,20 @@ export function PartnerRedirect() {
 
 export function Disclosure() {
   return (
-    <Page title="Affiliate disclosure" back>
+    <Page
+      title="Affiliate disclosure"
+      back
+      seo={{
+        description: 'Learn how FORWORD earns referral commissions from partner links while keeping editorial rankings and financial news completely independent.',
+        keywords: 'FORWORD affiliate disclosure, editorial independence policy, Indian finance platform transparency',
+        breadcrumbs: [{ name: 'Home', path: '/' }, { name: 'Affiliate Disclosure', path: '/disclosure' }],
+        jsonLd: buildWebPageJsonLd(window.location.origin, {
+          name: 'Affiliate & Editorial Disclosure – FORWORD',
+          description: 'Learn how FORWORD earns referral commissions from partner links while keeping editorial rankings and financial news completely independent.',
+          path: '/disclosure',
+        }),
+      }}
+    >
       <h2 className="text-2xl font-bold">How FORWORD earns</h2>
       <p className="text-sm leading-relaxed text-slate">We may earn a referral commission when you apply for a product through a partner link. Commercial relationships never decide editorial rankings or what we report. Rates and terms are verified from provider sources and show their last updated date. Sponsored content is always labelled. Information on FORWORD is general and is not financial advice.</p>
     </Page>
