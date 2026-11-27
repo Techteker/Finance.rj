@@ -316,7 +316,6 @@ export function Settings() {
       <ListRow icon="user" title={t('profile.privacy')} to="/settings/privacy" />
       {user && <ListRow icon="file" title={t('auth.changePassword')} to="/settings/password" />}
       <ListRow icon="gift" title={t('profile.cookiePreferences')} to="/settings/cookies" />
-      <ListRow icon="chart" title="SEO Audit Panel" sub="Crawlability, sitemaps & schema health" to="/admin/seo" />
       <ListRow icon="news" title={t('profile.aboutForword')} to="/about" />
     </Page>
   );
