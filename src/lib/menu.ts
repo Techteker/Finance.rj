@@ -44,4 +44,5 @@ export const NEWS_CATEGORIES: { slug: string; name: string }[] = [
   ['tax-news', 'Tax News'], ['cryptocurrency-news', 'Cryptocurrency News'], ['mutual-fund-news', 'Mutual Fund News'], ['insurance-news', 'Insurance News'], ['credit-card-news', 'Credit Card News'],
   ['loan-news', 'Loan News'], ['investment-news', 'Investment News'], ['government-schemes-news', 'Government Schemes'], ['startup-news', 'Startup News'], ['technology-fintech-news', 'Technology & Fintech News'],
   ['real-estate-news', 'Real Estate News'], ['gold-silver-news', 'Gold & Silver News'], ['global-finance-news', 'Global Finance News'],
+  ['regulatory-news', 'Regulatory News'], ['financial-literacy-news', 'Financial Literacy'],
 ].map(([slug, name]) => ({ slug, name }));
