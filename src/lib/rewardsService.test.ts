@@ -5,6 +5,7 @@ import {
   dailyCheckInCoins,
   reconcileWalletTotals,
   signPayload,
+  hashIdempotencyKey,
   type RewardsDbAdapter,
 } from '../../server/rewardsService';
 
@@ -42,6 +43,27 @@ function createMockRewardsDb(initialNow = Date.parse('2026-11-26T10:00:00.000Z')
         if (w.referral_code === code) return { ...w };
       }
       return null;
+    },
+    async applyReferralReward(input) {
+      const referrer = Array.from(wallets.values()).find((w) => w.referral_code === input.code);
+      if (!referrer) return { status: 'not_found' };
+      const referrerId = String(referrer.user_id);
+      if (referrerId === input.refereeId) return { status: 'self' };
+      const referee = wallets.get(input.refereeId);
+      if (!referee) return { status: 'missing_wallet' };
+      if (referee.referred_by) return { status: 'already_referred' };
+      const count = Array.from(txs.values()).filter((t) => t.user_id === referrerId && t.kind === 'referral' && t.label === 'Referral bonus').length;
+      if (count >= input.maxReferrals) return { status: 'limit' };
+      const referrerKey = hashIdempotencyKey(`referral:referrer:${referrerId}:${input.refereeId}`);
+      if (txByKey.has(input.refereeKey) || txByKey.has(referrerKey)) return { status: 'duplicate' };
+      txByKey.add(input.refereeKey);
+      txByKey.add(referrerKey);
+      const refereeTx = { id: `tx_${seq++}`, user_id: input.refereeId, kind: 'referral', label: 'Referral welcome bonus', coins: input.coins, amount: input.amount, idempotency_key: input.refereeKey, reference_id: referrerId, created_at: new Date(nowMs).toISOString() };
+      const referrerTx = { id: `tx_${seq++}`, user_id: referrerId, kind: 'referral', label: 'Referral bonus', coins: input.coins, amount: input.amount, idempotency_key: referrerKey, reference_id: input.refereeId, created_at: new Date(nowMs).toISOString() };
+      txs.set(String(refereeTx.id), refereeTx);
+      txs.set(String(referrerTx.id), referrerTx);
+      wallets.set(input.refereeId, { ...referee, referred_by: referrerId });
+      return { status: 'ok', referrerId };
     },
     async getApprovedNews(newsId) {
       const n = news.get(newsId);
@@ -209,7 +231,7 @@ test('Supabase rewards service enforces check-in idempotency, read duration, ant
   });
   const wd1 = await handleRewardsAction(alice, { action: 'withdraw', amount: 100, upiId: 'alice@okaxis', requestId: 'req-ok-1' }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
   assert.equal(wd1.status, 200);
-  assert.equal(wd1.body.balance, 150.31);
+  assert.equal(wd1.body.balance, 160.07);
 
   const wdDup = await handleRewardsAction(alice, { action: 'withdraw', amount: 100, upiId: 'alice@okaxis', requestId: 'req-ok-1' }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
   assert.equal(wdDup.status, 409);
