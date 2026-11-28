@@ -188,6 +188,7 @@ export interface RewardsDbAdapter {
   createWallet(row: Record<string, unknown>): Promise<Record<string, unknown>>;
   updateWallet(userId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>>;
   findWalletByReferralCode(code: string): Promise<Record<string, unknown> | null>;
+  applyReferralReward(input: { refereeId: string; code: string; coins: number; amount: number; refereeKey: string; referrerKey: string; maxReferrals: number }): Promise<{ status: string; referrerId?: string }>;
   getApprovedNews(newsId: string): Promise<{ id: string; title: string; slug: string; category_name?: string; image_url?: string } | null>;
   listTransactions(userId: string, limit?: number): Promise<Array<Record<string, unknown>>>;
   countTransactionsSince(userId: string, kind: string, sinceIso?: string): Promise<number>;
@@ -236,6 +237,19 @@ export function createSupabaseRewardsAdapter(): RewardsDbAdapter | null {
         .maybeSingle();
       if (error) throw error;
       return data as Record<string, unknown> | null;
+    },
+    async applyReferralReward(input) {
+      const { data, error } = await admin.rpc('apply_referral_bonus', {
+        p_referee_id: input.refereeId,
+        p_code: input.code,
+        p_coins: input.coins,
+        p_amount: input.amount,
+        p_referee_key: input.refereeKey,
+        p_referrer_key: input.referrerKey,
+        p_max_referrals: input.maxReferrals,
+      });
+      if (error) throw error;
+      return data as { status: string; referrer_id?: string; referrerId?: string };
     },
     async getApprovedNews(newsId) {
       const { data, error } = await admin
@@ -528,40 +542,26 @@ export async function handleRewardsAction(
       return { status: 400, body: { error: 'Enter a valid referral code.' } };
     }
     await ensureWallet(userId);
-    const referrer = await db.findWalletByReferralCode(code);
-    if (!referrer) {
-      return { status: 404, body: { error: 'Referral code not found.' } };
-    }
-    const referrerId = String(referrer.user_id);
-    if (referrerId === userId) {
-      return { status: 400, body: { error: 'You cannot use your own referral code.' } };
-    }
-    const referrerCount = await db.countTransactionsSince(referrerId, 'referral');
-    if (referrerCount >= REWARD_RULES.MAX_REFERRALS_PER_USER) {
-      return { status: 429, body: { error: 'This referral code has reached its reward limit.' } };
-    }
-    const refereeCredit = await recordCredit(
-      userId,
-      'referral',
-      'Referral welcome bonus',
-      REWARD_RULES.REFERRAL_COINS,
-      `referral:referee:${userId}`,
-      { referred_by: referrerId },
-      referrerId,
-    );
-    if (refereeCredit.duplicate) {
+    const result = await db.applyReferralReward({
+      refereeId: userId,
+      code,
+      coins: REWARD_RULES.REFERRAL_COINS,
+      amount: roundMoney(REWARD_RULES.REFERRAL_COINS * REWARD_RULES.COIN_RUPEES),
+      refereeKey: hashIdempotencyKey(`referral:referee:${userId}`),
+      referrerKey: '',
+      maxReferrals: REWARD_RULES.MAX_REFERRALS_PER_USER,
+    });
+    if (result.status === 'not_found') return { status: 404, body: { error: 'Referral code not found.' } };
+    if (result.status === 'self') return { status: 400, body: { error: 'You cannot use your own referral code.' } };
+    if (result.status === 'already_referred' || result.status === 'duplicate') {
       return { status: 409, body: { error: 'You have already redeemed a referral code.' } };
     }
-    await recordCredit(
-      referrerId,
-      'referral',
-      'Referral bonus',
-      REWARD_RULES.REFERRAL_COINS,
-      `referral:referrer:${referrerId}:${userId}`,
-      {},
-      userId,
-    );
-    return { status: 200, body: { ok: true, coins: REWARD_RULES.REFERRAL_COINS } };
+    if (result.status === 'limit') return { status: 429, body: { error: 'This referral code has reached its reward limit.' } };
+    if (result.status !== 'ok' || !result.referrerId) {
+      throw new Error('Referral reward could not be completed.');
+    }
+    await Promise.all([syncAuthoritativeWallet(userId), syncAuthoritativeWallet(result.referrerId)]);
+    return { status: 200, body: { ok: true, coins: REWARD_RULES.REFERRAL_COINS, referrerCoins: REWARD_RULES.REFERRAL_COINS } };
   }
 
   if (action === 'withdraw') {
