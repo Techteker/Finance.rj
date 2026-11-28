@@ -1,6 +1,6 @@
 import multer from 'multer';
 import type { Request, Response } from 'express';
-import * as storageModule from '../../../server/storageService.ts';
+import * as storageModule from '../../../server/storageService';
 const replaceStorageRouteHandler =
   (storageModule as any).replaceStorageRouteHandler ??
   (storageModule as any).default?.replaceStorageRouteHandler;
