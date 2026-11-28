@@ -16,8 +16,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { CATEGORIES, NEWS_CATEGORIES, OFFER_CATEGORIES } from '../lib/menu';
-import { CALCS } from '../lib/calc';
+import { supabase } from '../lib/supabase';
 import { useI18n } from '../hooks/i18n';
 import { useAuth } from '../hooks/auth';
 
@@ -50,62 +49,47 @@ export function SideMenuDrawer({ open, onClose }: { open: boolean; onClose: () =
   const { t, tCategory, tNewsCategory, tOfferCategory, tCalc } = useI18n();
   const { user } = useAuth();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [menuRows, setMenuRows] = useState<Array<{ slug: string; label: string; parent_slug: string | null; route: string; icon: string; sort_order: number }>>([]);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    let alive = true;
+    const loadMenu = async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('navigation_menu_items')
+        .select('slug,label,parent_slug,route,icon,sort_order')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      if (!alive) return;
+      if (error) {
+        console.error('Unable to load navigation menu from Supabase:', error.message);
+        setMenuRows([]);
+        return;
+      }
+      setMenuRows((data ?? []) as typeof menuRows);
+    };
+    void loadMenu();
+    return () => { alive = false; };
+  }, []);
+
   const sections = useMemo<MenuSection[]>(() => {
-    const categorySections: MenuSection[] = CATEGORIES.map((c) => {
-      const catLabel = tCategory(c.slug, c.label);
-      return {
-        id: c.slug,
-        label: catLabel,
-        Icon: CAT_ICONS[c.slug] ?? Briefcase,
-        allLabel: `${t('common.all')} ${catLabel}`,
-        allTo: `/category/${c.slug}`,
-        items: c.subs.map((sub) => ({
-          label: sub.label,
-          to: `/${c.slug}/${sub.slug}`,
-        })),
-      };
-    });
-
-    const calculatorsSection: MenuSection = {
-      id: 'calculators',
-      label: t('nav.financialTools'),
-      Icon: Calculator,
-      allLabel: `${t('common.all')} ${t('nav.financialTools')}`,
-      allTo: '/calculators',
-      items: CALCS.map((c) => ({
-        label: tCalc(c.slug, c.title),
-        to: `/calculators/${c.slug}`,
-      })),
+    const icons: Record<string, LucideIcon> = {
+      'credit-card': CreditCard, landmark: Landmark, 'hand-coins': HandCoins,
+      shield: Shield, 'chart-pie': PieChart, 'file-text': Building2,
+      users: Briefcase, calculator: Calculator, tag: Tag, newspaper: Newspaper,
     };
-
-    const newsSection: MenuSection = {
-      id: 'news',
-      label: t('news.tabNews'),
-      Icon: Newspaper,
-      allLabel: `${t('common.all')} ${t('news.tabNews')}`,
-      allTo: '/',
-      items: NEWS_CATEGORIES.map((n) => ({
-        label: tNewsCategory(n.slug, n.name),
-        to: `/news/category/${n.slug}`,
-      })),
-    };
-
-    const offersSection: MenuSection = {
-      id: 'offers',
-      label: t('nav.offers'),
-      Icon: Tag,
-      allLabel: `${t('common.all')} ${t('nav.offers')}`,
-      allTo: '/offers',
-      items: OFFER_CATEGORIES.filter((o) => o.slug !== 'all').map((o) => ({
-        label: tOfferCategory(o.slug, o.label),
-        to: `/offers/category/${o.slug}`,
-      })),
-    };
-
-    return [...categorySections, calculatorsSection, offersSection, newsSection];
-  }, [t, tCategory, tNewsCategory, tOfferCategory, tCalc]);
+    return menuRows.filter((row) => row.parent_slug === null).map((parent) => ({
+      id: parent.slug,
+      label: parent.label,
+      Icon: icons[parent.icon] ?? Briefcase,
+      allLabel: parent.slug === 'news' ? 'All News' : parent.slug === 'offers' ? 'All Offers' : parent.slug === 'calculators' ? 'All Financial Tools' : `All ${parent.label}`,
+      allTo: parent.route,
+      items: menuRows
+        .filter((row) => row.parent_slug === parent.slug)
+        .map((row) => ({ label: row.label, to: row.route })),
+    }));
+  }, [menuRows]);
 
   const activeSection = useMemo(
     () => (activeId ? sections.find((s) => s.id === activeId) ?? null : null),
