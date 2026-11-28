@@ -38,6 +38,8 @@ function WalletCard({ uid }: { uid: string }) {
   const yesterday = indiaDate(new Date(Date.now() - 86_400_000));
   const checkedInToday = Boolean(d.lastCheckIn && indiaDate(new Date(d.lastCheckIn)) === today);
   const nextStreak = d.lastCheckIn && indiaDate(new Date(d.lastCheckIn)) === yesterday ? d.streak + 1 : 1;
+  const displayStreak = checkedInToday ? d.streak : nextStreak;
+  const displayCheckInCoins = checkInReward(displayStreak);
   const nextCheckInCoins = checkInReward(nextStreak);
   const checkIn = async () => {
     if (busy) return;
@@ -63,7 +65,7 @@ function WalletCard({ uid }: { uid: string }) {
         <div className="space-y-1.5 rounded-card border border-line p-3.5"><Coins className="text-pri-dark" /><p className="text-lg font-bold">{d.coins ?? 0}</p><p className="text-xs text-slate">{t('rewards.coins')}</p></div>
         <div className="space-y-1.5 rounded-card border border-line p-3.5"><Flame className="text-pri-dark" /><p className="text-lg font-bold">{t('rewards.days', { count: d.streak ?? 0 })}</p><p className="text-xs text-slate">{t('rewards.streak')}</p></div>
       </div>
-      <div className="space-y-2 rounded-card border border-line p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold text-ink">Daily login reward</p><p className="text-xs text-slate">Day {nextStreak} · 100 coins = ₹1</p></div><p className="text-lg font-bold text-pri-dark">+{nextCheckInCoins} coins</p></div><Btn variant="outline" disabled={busy || checkedInToday} onClick={checkIn}>{busy ? t('common.loading') : checkedInToday ? 'Claimed today' : `Claim +${nextCheckInCoins} coins`}</Btn></div>
+      <div className="space-y-2 rounded-card border border-line p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold text-ink">Daily login reward</p><p className="text-xs text-slate">Day {displayStreak} · 100 coins = ₹1</p></div><p className="text-lg font-bold text-pri-dark">+{displayCheckInCoins} coins</p></div><Btn variant="outline" disabled={busy || checkedInToday} onClick={checkIn}>{busy ? t('common.loading') : checkedInToday ? 'Claimed today' : `Claim +${nextCheckInCoins} coins`}</Btn></div>
     </>
   );
 }
