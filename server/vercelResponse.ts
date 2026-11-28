@@ -26,3 +26,5 @@ export function adaptExpressResponse(res: Response): Response {
   }
   return res;
 }
+
+export default { adaptExpressResponse };
