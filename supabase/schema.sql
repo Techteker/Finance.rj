@@ -670,10 +670,21 @@ DROP POLICY IF EXISTS "calculator_history_own_all" ON public.calculator_history;
 CREATE POLICY "calculator_history_own_all" ON public.calculator_history
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Notifications: read own or broadcast; write admin only
+-- Notifications: anon can read broadcast rows only; authenticated users can read broadcasts + their own.
+-- All writes remain admin-only; RLS protects private user notifications.
+GRANT SELECT ON TABLE public.notifications TO anon, authenticated;
+
+DROP POLICY IF EXISTS "notifications_read_own" ON public.notifications;
+DROP POLICY IF EXISTS "notifications_read_broadcast_anon" ON public.notifications;
+CREATE POLICY "notifications_read_broadcast_anon" ON public.notifications
+  FOR SELECT TO anon
+  USING (user_id IS NULL);
+
 DROP POLICY IF EXISTS "notifications_read_own_or_broadcast" ON public.notifications;
 CREATE POLICY "notifications_read_own_or_broadcast" ON public.notifications
-  FOR SELECT USING (user_id IS NULL OR auth.uid() = user_id OR public.is_admin());
+  FOR SELECT TO authenticated
+  USING (user_id IS NULL OR auth.uid() = user_id OR public.is_admin());
+
 DROP POLICY IF EXISTS "notifications_admin_write" ON public.notifications;
 CREATE POLICY "notifications_admin_write" ON public.notifications
   FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
