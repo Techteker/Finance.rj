@@ -188,7 +188,7 @@ export interface RewardsDbAdapter {
   createWallet(row: Record<string, unknown>): Promise<Record<string, unknown>>;
   updateWallet(userId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>>;
   findWalletByReferralCode(code: string): Promise<Record<string, unknown> | null>;
-  applyReferralReward(input: { refereeId: string; code: string; coins: number; amount: number; refereeKey: string; referrerKey: string; maxReferrals: number }): Promise<{ status: string; referrerId?: string }>;
+  applyReferralReward(input: { refereeId: string; code: string; coins: number; amount: number; refereeKey: string; maxReferrals: number }): Promise<{ status: string; referrerId?: string }>;
   getApprovedNews(newsId: string): Promise<{ id: string; title: string; slug: string; category_name?: string; image_url?: string } | null>;
   listTransactions(userId: string, limit?: number): Promise<Array<Record<string, unknown>>>;
   countTransactionsSince(userId: string, kind: string, sinceIso?: string): Promise<number>;
@@ -249,7 +249,8 @@ export function createSupabaseRewardsAdapter(): RewardsDbAdapter | null {
         p_max_referrals: input.maxReferrals,
       });
       if (error) throw error;
-      return data as { status: string; referrer_id?: string; referrerId?: string };
+      const result = data as { status: string; referrer_id?: string };
+      return { status: result.status, referrerId: result.referrer_id };
     },
     async getApprovedNews(newsId) {
       const { data, error } = await admin
@@ -548,7 +549,6 @@ export async function handleRewardsAction(
       coins: REWARD_RULES.REFERRAL_COINS,
       amount: roundMoney(REWARD_RULES.REFERRAL_COINS * REWARD_RULES.COIN_RUPEES),
       refereeKey: hashIdempotencyKey(`referral:referee:${userId}`),
-      referrerKey: '',
       maxReferrals: REWARD_RULES.MAX_REFERRALS_PER_USER,
     });
     if (result.status === 'not_found') return { status: 404, body: { error: 'Referral code not found.' } };
