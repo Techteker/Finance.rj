@@ -3,16 +3,16 @@ import type { Request, Response } from 'express';
 import { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession, type VerifiedSession } from './supabaseAdmin';
 
 export const REWARD_RULES = {
-  CHECKIN_COINS: Math.max(0, Number(process.env.CHECKIN_COINS || 5)),
-  READ_COINS: Math.max(0, Number(process.env.READ_COINS || 1)),
-  REFERRAL_COINS: Math.max(0, Number(process.env.REFERRAL_COINS || 25)),
+  CHECKIN_COINS: 2,
+  READ_COINS: 1,
+  REFERRAL_COINS: 1000,
   MAX_DAILY_READS: Math.max(1, Number(process.env.MAX_DAILY_READS || 20)),
   MAX_REFERRALS_PER_USER: Math.max(1, Number(process.env.MAX_REFERRALS_PER_USER || 50)),
   MAX_PENDING_WITHDRAWALS: Math.max(1, Number(process.env.MAX_PENDING_WITHDRAWALS || 3)),
   MIN_WITHDRAWAL: Math.max(1, Number(process.env.MIN_WITHDRAWAL || 100)),
   MAX_WITHDRAWAL: Math.max(100, Number(process.env.MAX_WITHDRAWAL || 100000)),
-  COIN_RUPEES: Math.max(0.0001, Number(process.env.COIN_RUPEES || 0.01)),
-  READ_SECONDS: Math.max(20, Number(process.env.READ_SECONDS || 20)),
+  COIN_RUPEES: 0.01,
+  READ_SECONDS: 20,
 } as const;
 
 const UPI_REGEX = /^[\w.-]{2,64}@[a-zA-Z0-9]{2,32}$/;
@@ -20,6 +20,26 @@ const ARTICLE_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const REFERRAL_CODE_REGEX = /^FW[A-Z0-9]{6,12}$/;
 
 const rateBuckets = new Map<string, number[]>();
+
+export function indiaDateKey(nowMs: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(nowMs));
+}
+
+export function indiaDayStartIso(nowMs: number): string {
+  return new Date(`${indiaDateKey(nowMs)}T00:00:00+05:30`).toISOString();
+}
+
+export function dailyCheckInCoins(streakDay: number): number {
+  const schedule = [2, 4, 6, 12, 24, 48, 96];
+  if (!Number.isInteger(streakDay) || streakDay < 1) return 2;
+  if (streakDay <= schedule.length) return schedule[streakDay - 1];
+  return 96 * (2 ** (streakDay - schedule.length));
+}
 
 export const roundMoney = (value: number): number => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 export const hashIdempotencyKey = (value: string): string =>
@@ -424,24 +444,24 @@ export async function handleRewardsAction(
 
   if (action === 'check-in') {
     const w = await ensureWallet(userId);
-    const today = new Date(nowMs).toISOString().slice(0, 10);
+    const today = indiaDateKey(nowMs);
     if (w.last_check_in && String(w.last_check_in).slice(0, 10) === today) {
       return { status: 200, body: { ok: true, duplicate: true, coins: 0, message: 'Already checked in today.' } };
     }
-    const yesterday = new Date(nowMs - 86_400_000).toISOString().slice(0, 10);
+    const yesterday = indiaDateKey(nowMs - 86_400_000);
     const streak =
       w.last_check_in && String(w.last_check_in).slice(0, 10) === yesterday ? Number(w.streak || 0) + 1 : 1;
     const credit = await recordCredit(
       userId,
       'check-in',
       'Daily check-in',
-      REWARD_RULES.CHECKIN_COINS,
+      dailyCheckInCoins(streak),
       `check-in:${userId}:${today}`,
       { streak, last_check_in: new Date(nowMs).toISOString() },
     );
     return {
       status: 200,
-      body: { ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : REWARD_RULES.CHECKIN_COINS },
+      body: { ok: true, duplicate: credit.duplicate, coins: credit.duplicate ? 0 : dailyCheckInCoins(streak), streak },
     };
   }
 
@@ -468,7 +488,7 @@ export async function handleRewardsAction(
     if (!article) {
       return { status: 404, body: { error: 'Article not eligible for reading rewards.' } };
     }
-    const startOfDay = `${new Date(nowMs).toISOString().slice(0, 10)}T00:00:00.000Z`;
+    const startOfDay = indiaDayStartIso(nowMs);
     const todayReads = await db.countTransactionsSince(userId, 'read', startOfDay);
     if (todayReads >= REWARD_RULES.MAX_DAILY_READS) {
       return { status: 429, body: { error: 'Daily reading reward limit reached. Come back tomorrow.' } };
