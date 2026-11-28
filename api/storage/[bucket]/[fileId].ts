@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
-import { adaptExpressResponse } from '../../../server/vercelResponse.ts';
-import { deleteStorageRouteHandler } from '../../../server/storageService.ts';
+import * as responseModule from '../../../server/vercelResponse.ts';
+const adaptExpressResponse = (responseModule as any).adaptExpressResponse ?? (responseModule as any).default?.adaptExpressResponse;
+import * as storageModule from '../../../server/storageService.ts';
+const deleteStorageRouteHandler = (storageModule as any).deleteStorageRouteHandler ?? (storageModule as any).default?.deleteStorageRouteHandler;
 
 export default async function handler(req: Request, res: Response) {
   res = adaptExpressResponse(res);
