@@ -34,19 +34,9 @@ interface MenuSection {
   items: SubMenuItem[];
 }
 
-const CAT_ICONS: Record<string, LucideIcon> = {
-  'credit-cards': CreditCard,
-  banking: Landmark,
-  loans: HandCoins,
-  insurance: Shield,
-  investments: PieChart,
-  'tax-savings': Building2,
-  'government-schemes': Briefcase,
-};
-
 export function SideMenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { pathname } = useLocation();
-  const { t, tCategory, tNewsCategory, tOfferCategory, tCalc } = useI18n();
+  const { t } = useI18n();
   const { user } = useAuth();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [menuRows, setMenuRows] = useState<Array<{ slug: string; label: string; parent_slug: string | null; route: string; icon: string; sort_order: number }>>([]);
