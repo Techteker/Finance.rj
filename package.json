@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "seo:sitemaps": "node scripts/generate-sitemaps.mjs"
+    "seo:sitemaps": "node scripts/generate-sitemaps.mjs",
+    "seo:prerender": "node scripts/prerender-news.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",
