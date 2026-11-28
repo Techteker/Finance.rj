@@ -2,10 +2,10 @@ import path from 'node:path';
 import type { Request, Response } from 'express';
 import { Client, ID, Permission, Role, Storage } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
-import * as supabaseAdminModule from './supabaseAdmin.ts';
+import * as supabaseAdminModule from './supabaseAdmin';
 const supabaseAdminModuleValue = (supabaseAdminModule as any).default ?? supabaseAdminModule;
-const { getSupabaseAdmin, verifySupabaseSession } = supabaseAdminModuleValue as typeof import('./supabaseAdmin.ts');
-type VerifiedSession = import('./supabaseAdmin.ts').VerifiedSession;
+const { getSupabaseAdmin, verifySupabaseSession } = supabaseAdminModuleValue as typeof import('./supabaseAdmin');
+type VerifiedSession = import('./supabaseAdmin').VerifiedSession;
 
 export const ALLOWED_BUCKETS = [
   'profile-images',
