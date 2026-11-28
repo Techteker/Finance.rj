@@ -117,6 +117,12 @@ export default function SeoHead() {
       description: 'Explore Indian financial news, product guides, comparisons and practical money information on FORWORD.',
     };
 
+    if (path.startsWith('/news/category/')) {
+      const title = 'Finance News by Category | FORWORD';
+      applySeo({ title, description: 'Browse Indian finance news by category, including markets, banking, loans, insurance and taxation.', canonical, schema: { '@context': 'https://schema.org', '@type': 'CollectionPage', name: title, url: canonical } });
+      return () => { active = false; };
+    }
+
     if (path.startsWith('/news/')) {
       const slug = decodeURIComponent(path.slice('/news/'.length));
       if (slug === 'category') {
