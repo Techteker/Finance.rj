@@ -226,10 +226,11 @@ function ReferralBody({ uid }: { uid: string }) {
   const { t } = useI18n();
   const w = useAsync(() => getWallet(), [uid]);
   const toast = useToast();
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(() => new URLSearchParams(window.location.search).get('code')?.trim().toUpperCase() || '');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const code = w.data?.referralCode;
+  const inviteUrl = code ? `${window.location.origin}/referral?code=${encodeURIComponent(code)}` : '';
   const cleanInvite = inviteCode.trim().toUpperCase();
   const canApply = !busy && /^FW[A-Z0-9]{6,12}$/.test(cleanInvite);
 
@@ -257,6 +258,7 @@ function ReferralBody({ uid }: { uid: string }) {
       ) : (
         <p className="text-center text-sm text-slate">Your referral code is not ready yet.</p>
       )}
+      {code && <Btn variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(inviteUrl); toast.show('Invite link copied'); } catch { toast.show('Could not copy invite link automatically.'); } }}>Copy invite link</Btn>}
       <div className="space-y-2.5 rounded-card border border-line p-4">
         <p className="text-sm font-bold text-ink">{t('rewards.haveReferral')}</p>
         <p className="text-xs text-slate">Enter a friend&apos;s code once. You receive 1,000 coins (₹10); your friend also receives 1,000 coins (₹10).</p>
