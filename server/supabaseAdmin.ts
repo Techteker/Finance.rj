@@ -79,3 +79,5 @@ export async function verifySupabaseSession(
     },
   };
 }
+
+export default { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession };
