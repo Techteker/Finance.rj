@@ -46,7 +46,7 @@ function applySeo(input: {
   schema?: unknown;
 }) {
   const title = input.title.slice(0, 70);
-  const description = input.description.replace(/\\s+/g, ' ').trim().slice(0, 200);
+  const description = input.description.replace(/\s+/g, ' ').trim().slice(0, 200);
   const image = input.image || `${SITE}/og-image.jpg`;
   document.title = title;
   setMeta('description', description);
@@ -72,9 +72,9 @@ export default function SeoHead() {
 
   useEffect(() => {
     let active = true;
-    const path = pathname.replace(/\\/+$/, '') || '/';
+    const path = pathname.replace(/\/+$/, '') || '/';
     const canonical = `${SITE}${path}`;
-    const privatePath = /^\\/(admin|welcome|onboarding|language|notification-permission|login|register|forgot-password|reset-password|verify-otp|verify-email|account-created|profile|settings|wallet|rewards|referral|favorites|notifications|search|compare|menu|go|offline|maintenance)(\\/|$)/.test(path);
+    const privatePath = /^\/(admin|welcome|onboarding|language|notification-permission|login|register|forgot-password|reset-password|verify-otp|verify-email|account-created|profile|settings|wallet|rewards|referral|favorites|notifications|search|compare|menu|go|offline|maintenance)(\/|$)/.test(path);
 
     if (privatePath) {
       applySeo({
