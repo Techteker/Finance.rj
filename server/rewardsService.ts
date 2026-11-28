@@ -286,12 +286,22 @@ export function createSupabaseRewardsAdapter(): RewardsDbAdapter | null {
       return count ?? 0;
     },
     async insertTransaction(row) {
-      const { data, error } = await admin.from('reward_transactions').insert(row).select('*').single();
-      if (error) {
-        if (error.code === '23505') return { duplicate: true };
-        throw error;
-      }
-      return { duplicate: false, row: data as Record<string, unknown> };
+      const { data, error } = await admin.rpc('process_reward_credit', {
+        p_user_id: row.user_id,
+        p_kind: row.kind,
+        p_label: row.label,
+        p_coins: row.coins,
+        p_amount: row.amount,
+        p_idempotency_key: row.idempotency_key,
+        p_reference_id: row.reference_id ?? null,
+        p_metadata: row.metadata ?? {},
+      });
+      if (error) throw error;
+      const result = data as { duplicate?: boolean; transaction_id?: string };
+      return {
+        duplicate: Boolean(result?.duplicate),
+        row: result?.transaction_id ? { id: result.transaction_id } : undefined,
+      };
     },
     async listWithdrawals(userId, limit = 500) {
       const { data, error } = await admin
