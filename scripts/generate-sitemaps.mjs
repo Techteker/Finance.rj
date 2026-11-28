@@ -8,10 +8,9 @@
  *   - public/sitemap-news.xml    (Google News compliant: approved articles within last 48h)
  *   - public/sitemap-images.xml  (Google Image sitemap for approved media)
  *
- * Appwrite Integration:
- *   When APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_DATABASE_ID, and APPWRITE_API_KEY
- *   are set in the server/CI environment, fetches ONLY live approved documents (`status === 'approved'`)
- *   using pagination, excludes drafts/rejected items and expired offers, and NEVER injects demo data.
+ * Supabase Integration:
+ *   Reads published/approved records from Supabase at build time, excludes drafts/rejected items
+ *   and expired offers, and NEVER injects demo data.
  */
 
 import fs from 'node:fs';
@@ -179,6 +178,7 @@ async function fetchApprovedFromSupabase() {
       products: [],
       offers: [],
       brands: [],
+      categories: [],
     };
   }
 
@@ -195,7 +195,7 @@ async function fetchApprovedFromSupabase() {
         .select('*')
         .in('status', ['approved', 'published'])
         .range(from, to);
-      if (error) return out;
+      if (error) throw new Error(`Supabase ${table} sitemap query failed: ${error.message}`);
       const rows = data || [];
       out.push(...rows);
       if (rows.length < 100) break;
@@ -203,13 +203,24 @@ async function fetchApprovedFromSupabase() {
     return out;
   }
 
-  const [newsRaw, productsRaw, ccRaw, loansRaw, offersRaw, brandsRaw] = await Promise.all([
+  const [newsRaw, productsRaw, ccRaw, loansRaw, offersRaw, brandsRaw, categoriesRaw] = await Promise.all([
     listAllApproved('news'),
     listAllApproved('products'),
     listAllApproved('credit_cards'),
     listAllApproved('loans'),
     listAllApproved('offers'),
     listAllApproved('brands'),
+    (async () => {
+      const out = [];
+      for (let page = 0; page < 50; page++) {
+        const { data, error } = await sb.from('categories').select('name,slug,kind').eq('kind', 'news').range(page * 100, page * 100 + 99);
+        if (error) throw new Error(`Supabase categories sitemap query failed: ${error.message}`);
+        const rows = data || [];
+        out.push(...rows);
+        if (rows.length < 100) break;
+      }
+      return out;
+    })(),
   ]);
 
   const news = newsRaw.map((n) => ({
@@ -254,7 +265,8 @@ async function fetchApprovedFromSupabase() {
     status: 'approved',
   }));
 
-  return { connected: true, news, products, offers, brands };
+  const categories = categoriesRaw.filter((c) => cleanText(c.slug)).map((c) => ({ name: c.name, slug: c.slug }));
+  return { connected: true, news, products, offers, brands, categories };
 }
 
 async function main() {
@@ -277,6 +289,10 @@ async function main() {
   };
 
   for (const e of staticEntries) pushMain(e);
+
+  for (const c of dynamic.categories) {
+    pushMain({ path: `/category/${encodeURIComponent(cleanText(c.slug))}`, changefreq: 'weekly', priority: '0.8' });
+  }
 
   for (const n of dynamic.news) {
     if (String(n.status).toLowerCase() !== 'approved' || !cleanText(n.slug)) continue;
@@ -396,9 +412,9 @@ async function main() {
   console.log(`  - sitemap-news.xml (${newsRows.length} recent news URLs)`);
   console.log(`  - sitemap-images.xml (${imageRows.length} image entries)`);
   if (!dynamic.connected) {
-    console.log(`  - Appwrite status: ${dynamic.reason}`);
+    console.log(`  - Supabase status: ${dynamic.reason}`);
   } else {
-    console.log(`  - Appwrite status: connected (${dynamic.news.length} news, ${dynamic.products.length} products, ${dynamic.offers.length} offers, ${dynamic.brands.length} brands)`);
+    console.log(`  - Supabase status: connected (${dynamic.news.length} news, ${dynamic.categories.length} categories, ${dynamic.products.length} products, ${dynamic.offers.length} offers, ${dynamic.brands.length} brands)`);
   }
 }
 
