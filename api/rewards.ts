@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import * as rewardsModule from '../server/rewardsService.ts';
+import * as rewardsModule from '../server/rewardsService';
 
 const rewardsRouteHandler =
   (rewardsModule as any).rewardsRouteHandler ??
