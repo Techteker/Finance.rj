@@ -458,6 +458,97 @@ CREATE TABLE IF NOT EXISTS public.reward_transactions (
 CREATE INDEX IF NOT EXISTS idx_reward_tx_user_created ON public.reward_transactions(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reward_tx_user_kind_created ON public.reward_transactions(user_id, kind, created_at DESC);
 
+-- Atomic two-sided referral payout. Called only by the trusted rewards API using service_role.
+CREATE OR REPLACE FUNCTION public.apply_referral_bonus(
+  p_referee_id uuid,
+  p_code text,
+  p_coins integer,
+  p_amount numeric,
+  p_referee_key text,
+  p_max_referrals integer
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $
+DECLARE
+  v_referrer_id uuid;
+  v_referred_by uuid;
+  v_referrer_key text;
+  v_referral_count integer;
+BEGIN
+  IF p_coins <> 1000 OR p_amount <> 10.00 OR p_max_referrals < 1 THEN
+    RAISE EXCEPTION 'Invalid referral reward configuration';
+  END IF;
+
+  SELECT user_id INTO v_referrer_id
+  FROM public.wallets
+  WHERE referral_code = upper(trim(p_code));
+
+  IF v_referrer_id IS NULL THEN
+    RETURN jsonb_build_object('status', 'not_found');
+  END IF;
+  IF v_referrer_id = p_referee_id THEN
+    RETURN jsonb_build_object('status', 'self');
+  END IF;
+
+  -- Lock both wallets in a stable order to avoid opposite-direction referral deadlocks.
+  PERFORM 1
+  FROM public.wallets
+  WHERE user_id IN (p_referee_id, v_referrer_id)
+  ORDER BY user_id
+  FOR UPDATE;
+
+  SELECT referred_by INTO v_referred_by
+  FROM public.wallets
+  WHERE user_id = p_referee_id;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'missing_wallet');
+  END IF;
+  IF v_referred_by IS NOT NULL THEN
+    RETURN jsonb_build_object('status', 'already_referred');
+  END IF;
+
+  v_referrer_key := left(encode(digest(
+    'referral:referrer:' || v_referrer_id::text || ':' || p_referee_id::text,
+    'sha256'
+  ), 'hex'), 48);
+
+  IF EXISTS (
+    SELECT 1 FROM public.reward_transactions
+    WHERE idempotency_key = p_referee_key OR idempotency_key = v_referrer_key
+  ) THEN
+    RETURN jsonb_build_object('status', 'duplicate');
+  END IF;
+
+  SELECT count(*) INTO v_referral_count
+  FROM public.reward_transactions
+  WHERE user_id = v_referrer_id
+    AND kind = 'referral'
+    AND label = 'Referral bonus';
+  IF v_referral_count >= p_max_referrals THEN
+    RETURN jsonb_build_object('status', 'limit');
+  END IF;
+
+  INSERT INTO public.reward_transactions
+    (user_id, kind, label, coins, amount, idempotency_key, reference_id)
+  VALUES
+    (p_referee_id, 'referral', 'Referral welcome bonus', p_coins, p_amount, p_referee_key, v_referrer_id::text),
+    (v_referrer_id, 'referral', 'Referral bonus', p_coins, p_amount, v_referrer_key, p_referee_id::text);
+
+  UPDATE public.wallets
+  SET referred_by = v_referrer_id
+  WHERE user_id = p_referee_id;
+
+  RETURN jsonb_build_object('status', 'ok', 'referrer_id', v_referrer_id);
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.apply_referral_bonus(uuid, text, integer, numeric, text, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_referral_bonus(uuid, text, integer, numeric, text, integer) TO service_role;
+
+
 CREATE TABLE IF NOT EXISTS public.withdrawals (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
