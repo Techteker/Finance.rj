@@ -58,7 +58,7 @@ function WalletCard({ uid }: { uid: string }) {
     <>
       <div className="space-y-3 rounded-[18px] bg-pri p-[18px] text-white">
         <p className="text-xs font-medium text-white/85">{t('rewards.walletBalance')}</p>
-        <p className="text-[32px] font-bold">{inr(d.balance ?? 0)}</p>
+        <p className="text-[32px] font-bold">{inr(d.balance ?? 0)}</p><p className="text-[11px] text-white/80">100 coins = ₹1</p>
         <div className="flex gap-2.5"><Btn to="/wallet/withdraw" variant="accent">{t('rewards.withdraw')}</Btn><Btn to="/wallet/transactions" variant="outline" className="!border-white !text-white hover:!bg-white/10">{t('rewards.history')}</Btn></div>
       </div>
       <div className="grid grid-cols-2 gap-2.5">
