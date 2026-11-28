@@ -1,5 +1,6 @@
 import { Component, Suspense, lazy, type ComponentType, type ErrorInfo, type ReactNode, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import SeoHead from './components/SeoHead';
 import { AuthProvider } from './hooks/auth';
 import { LanguageProvider } from './hooks/i18n';
 import { CompareProvider, FavoritesProvider, ToastProvider } from './hooks/app';
@@ -144,6 +145,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <SeoHead />
         <ToastProvider>
           <AuthProvider>
             <LanguageProvider>
