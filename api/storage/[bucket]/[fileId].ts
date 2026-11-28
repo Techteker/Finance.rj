@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import * as storageModule from '../../../server/storageService.ts';
+import * as storageModule from '../../../server/storageService';
 const deleteStorageRouteHandler =
   (storageModule as any).deleteStorageRouteHandler ??
   (storageModule as any).default?.deleteStorageRouteHandler;
