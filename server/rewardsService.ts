@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
-import * as supabaseAdminModule from './supabaseAdmin.ts';
+import * as supabaseAdminModule from './supabaseAdmin';
 const supabaseAdmin = (supabaseAdminModule as any).default ?? supabaseAdminModule;
-const { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession } = supabaseAdmin as typeof import('./supabaseAdmin.ts');
-type VerifiedSession = import('./supabaseAdmin.ts').VerifiedSession;
+const { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession } = supabaseAdmin as typeof import('./supabaseAdmin');
+type VerifiedSession = import('./supabaseAdmin').VerifiedSession;
 
 export const REWARD_RULES = {
   CHECKIN_COINS: 2,
