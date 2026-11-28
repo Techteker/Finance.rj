@@ -445,12 +445,12 @@ export async function handleRewardsAction(
   if (action === 'check-in') {
     const w = await ensureWallet(userId);
     const today = indiaDateKey(nowMs);
-    if (w.last_check_in && String(w.last_check_in).slice(0, 10) === today) {
+    if (w.last_check_in && indiaDateKey(new Date(String(w.last_check_in)).getTime()) === today) {
       return { status: 200, body: { ok: true, duplicate: true, coins: 0, message: 'Already checked in today.' } };
     }
     const yesterday = indiaDateKey(nowMs - 86_400_000);
     const streak =
-      w.last_check_in && String(w.last_check_in).slice(0, 10) === yesterday ? Number(w.streak || 0) + 1 : 1;
+      w.last_check_in && indiaDateKey(new Date(String(w.last_check_in)).getTime()) === yesterday ? Number(w.streak || 0) + 1 : 1;
     const credit = await recordCredit(
       userId,
       'check-in',
