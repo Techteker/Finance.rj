@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import responseModule from ''../server/vercelResponse.ts';
-import rewardsModule from ''../server/rewardsService.ts';
+import responseModule from '../server/vercelResponse.ts';
+import rewardsModule from '../server/rewardsService.ts';
 const adaptExpressResponse = (responseModule as any).adaptExpressResponse;
 const rewardsRouteHandler = (rewardsModule as any).rewardsRouteHandler;
 
