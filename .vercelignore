@@ -8,7 +8,8 @@ dist
 .env.*.local
 
 # Non-frontend / Appwrite CLI & server function code
-scripts
+scripts/*
+!scripts/generate-sitemaps.mjs
 functions
 
 # Local tests, browser captures & editor files
