@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { adaptExpressResponse } from '../../../server/vercelResponse';
-import { deleteStorageRouteHandler } from '../../../server/storageService';
+import { adaptExpressResponse } from '../../../server/vercelResponse.js';
+import { deleteStorageRouteHandler } from '../../../server/storageService.js';
 
 export default async function handler(req: Request, res: Response) {
   res = adaptExpressResponse(res);
