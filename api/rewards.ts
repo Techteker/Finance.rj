@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
-import { adaptExpressResponse } from '../server/vercelResponse.ts';
-import { rewardsRouteHandler } from '../server/rewardsService.ts';
+import * as responseModule from '../server/vercelResponse.ts';
+import * as rewardsModule from '../server/rewardsService.ts';
+const adaptExpressResponse = (responseModule as any).adaptExpressResponse ?? (responseModule as any).default?.adaptExpressResponse;
+const rewardsRouteHandler = (rewardsModule as any).rewardsRouteHandler ?? (rewardsModule as any).default?.rewardsRouteHandler;
 
 /**
  * Vercel Node.js function adapter. All authorization, reward validation,
