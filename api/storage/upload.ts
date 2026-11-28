@@ -1,7 +1,7 @@
 import multer from 'multer';
 import type { Request, Response } from 'express';
-import { adaptExpressResponse } from '../../server/vercelResponse';
-import { uploadStorageRouteHandler } from '../../server/storageService';
+import { adaptExpressResponse } from '../../server/vercelResponse.js';
+import { uploadStorageRouteHandler } from '../../server/storageService.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
