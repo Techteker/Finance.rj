@@ -24,8 +24,8 @@ function setMeta(html, key, value, property = false) {
 }
 function makePage({ title, description, canonical, image, keywords, schema, body, article = false }) {
   let html = baseHtml;
-  html = html.replace(/<title>[\\s\\S]*?<\\/title>/i, '<title>' + esc(title) + '</title>');
-  html = html.replace(/<link\\s+rel="canonical"[^>]*>/i, '<link rel="canonical" href="' + esc(canonical) + '" />');
+  html = html.replace(/<title>[\s\S]*?<\/title>/i, '<title>' + esc(title) + '</title>');
+  html = html.replace(/<link\s+rel="canonical"[^>]*>/i, '<link rel="canonical" href="' + esc(canonical) + '" />');
   html = setMeta(html, 'description', description);
   html = setMeta(html, 'keywords', keywords || 'FORWORD, Indian finance news, banking, credit cards, loans, insurance, mutual funds, taxation');
   html = setMeta(html, 'robots', 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1');
@@ -39,7 +39,7 @@ function makePage({ title, description, canonical, image, keywords, schema, body
   html = setMeta(html, 'twitter:description', description);
   html = setMeta(html, 'twitter:image', image || SITE + '/og-image.jpg');
   if (schema) {
-    const json = JSON.stringify(schema).replace(/</g, '\\\\u003c');
+    const json = JSON.stringify(schema).replace(/</g, '\\u003c');
     html = html.replace('</head>', '<script type="application/ld+json">' + json + '</script></head>');
   }
   html = html.replace('<div id="root"></div>', '<div id="root">' + body + '</div>');
@@ -47,7 +47,7 @@ function makePage({ title, description, canonical, image, keywords, schema, body
 }
 
 const { data: news, error: newsError } = await sb.from('news')
-  .select('slug,title,summary,body,seo_title,meta_description,meta_keywords,tags,og_title,og_description,canonical_url,image_url,schema_json,published_at,updated_at,author,status')
+  .select('slug,title,summary,body,seo_title,meta_description,meta_keywords,tags,og_title,og_description,canonical_url,image_url,schema_json,published_at,updated_at,author,status,category_name,category_slug')
   .eq('status', 'published');
 if (newsError) throw new Error('Could not fetch published news for prerendering: ' + newsError.message);
 
@@ -70,7 +70,7 @@ for (const n of news || []) {
     author: { '@type': 'Organization', name: n.author || 'FORWORD Editorial Team' },
     publisher: { '@type': 'Organization', name: 'FORWORD', logo: { '@type': 'ImageObject', url: SITE + '/favicon.svg' } },
   };
-  const bodyText = String(n.body || '').split(/\\r?\\n/).map((part) => part.trim()).filter(Boolean);
+  const bodyText = String(n.body || '').split(/\r?\n/).map((part) => part.trim()).filter(Boolean);
   const articleBody = '<main><article><h1>' + esc(n.title) + '</h1>' +
     '<p>' + esc(description) + '</p>' +
     (image ? '<img src="' + esc(image) + '" alt="' + esc(n.title) + '" />' : '') +
