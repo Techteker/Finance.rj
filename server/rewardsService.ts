@@ -245,7 +245,6 @@ export function createSupabaseRewardsAdapter(): RewardsDbAdapter | null {
         p_coins: input.coins,
         p_amount: input.amount,
         p_referee_key: input.refereeKey,
-        p_referrer_key: input.referrerKey,
         p_max_referrals: input.maxReferrals,
       });
       if (error) throw error;
