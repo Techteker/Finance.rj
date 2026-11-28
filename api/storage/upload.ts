@@ -1,36 +1,34 @@
 import multer from 'multer';
 import type { Request, Response } from 'express';
-import responseModule from '../../server/vercelResponse.ts';
-const adaptExpressResponse = (responseModule as any).adaptExpressResponse;
-import storageModule from '../../server/storageService.ts';
-const uploadStorageRouteHandler = (storageModule as any).uploadStorageRouteHandler ?? (storageModule as any).default?.uploadStorageRouteHandler;
+import * as storageModule from '../../server/storageService.ts';
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
-});
-
+const uploadStorageRouteHandler =
+  (storageModule as any).uploadStorageRouteHandler ??
+  (storageModule as any).default?.uploadStorageRouteHandler;
+function adaptResponse(res: Response): Response {
+  const native = res as any;
+  if (typeof native.status !== 'function') native.status = (code: number) => { native.statusCode = code; return res; };
+  if (typeof native.json !== 'function') native.json = (body: unknown) => {
+    if (!native.headersSent) native.setHeader('Content-Type', 'application/json; charset=utf-8');
+    native.end(JSON.stringify(body)); return res;
+  };
+  return res;
+}
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 export const config = { api: { bodyParser: false } };
-
 export default async function handler(req: Request, res: Response) {
-  res = adaptExpressResponse(res);
+  res = adaptResponse(res);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-store');
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method not allowed.' });
-  }
-
+  if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({ error: 'Method not allowed.' }); }
+  if (typeof uploadStorageRouteHandler !== 'function') return res.status(500).json({ error: 'Storage service unavailable.' });
   try {
     await new Promise<void>((resolve, reject) => {
       upload.single('file')(req, res, (error) => error ? reject(error) : resolve());
     });
   } catch (error) {
     const tooLarge = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
-    return res.status(tooLarge ? 413 : 400).json({
-      error: tooLarge ? 'File size exceeds the maximum allowed limit.' : 'Invalid file upload payload.',
-    });
+    return res.status(tooLarge ? 413 : 400).json({ error: tooLarge ? 'File size exceeds the maximum allowed limit.' : 'Invalid file upload payload.' });
   }
-
   return uploadStorageRouteHandler(req, res);
 }
