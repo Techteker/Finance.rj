@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Flag, Link2, Share2 } from 'lucide-react';
 import { addHistory, formatApiError, getNews, getNewsBySlug, getNewsCategories, getNotifications, getProductsByIds, reportArticle, type FeedKind } from '../lib/api';
@@ -38,21 +38,82 @@ export function Home() {
   const { t, tNewsCategory } = useI18n();
   const cats = useAsync(getNewsCategories, []);
   const [i, setI] = useState(0);
-  const [limit, setLimit] = useState(NEWS_PAGE_SIZE);
+  const [items, setItems] = useState<News[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [refreshKey, setRefreshKey] = useState(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const list = cats.data ?? [];
   const slug = i > 0 ? list[i - 1]?.slug : undefined;
-  useEffect(() => { setLimit(NEWS_PAGE_SIZE); }, [slug]);
-  const feed = useAsync(() => getNews({ category: slug, limit }), [slug, limit]);
-  const first = !slug ? feed.data?.[0] : undefined;
-  const hasMore = (feed.data?.length ?? 0) >= limit;
+
+  useEffect(() => {
+    setItems([]);
+    setOffset(0);
+    setHasMore(true);
+    setError(undefined);
+    setLoading(true);
+  }, [slug]);
+
+  useEffect(() => {
+    let active = true;
+    if (offset > 0 && !hasMore) return;
+    setLoading(true);
+    setError(undefined);
+    getNews({ category: slug, limit: NEWS_PAGE_SIZE, offset })
+      .then((page) => {
+        if (!active) return;
+        setItems((previous) => {
+          const combined = offset === 0 ? page : [...previous, ...page];
+          const seen = new Set<string>();
+          return combined.filter((item) => {
+            if (seen.has(item.$id)) return false;
+            seen.add(item.$id);
+            return true;
+          });
+        });
+        setHasMore(page.length === NEWS_PAGE_SIZE);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(formatApiError(reason));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [slug, offset, refreshKey]);
+
+  useEffect(() => {
+    const target = sentinelRef.current;
+    if (!target || !hasMore || loading || error) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setOffset((current) => current + NEWS_PAGE_SIZE);
+        }
+      },
+      { rootMargin: '500px 0px' },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, loading, error, items.length]);
+
+  const reload = () => {
+    setItems([]);
+    setOffset(0);
+    setHasMore(true);
+    setRefreshKey((value) => value + 1);
+  };
+  const first = !slug ? items[0] : undefined;
   const origin = window.location.origin;
   const homeSchemas: Record<string, unknown>[] = [...buildWebsiteJsonLd(origin)];
-  if (feed.data?.length) {
+  if (items.length) {
     homeSchemas.push(
       buildItemListJsonLd(origin, {
         name: 'Top Indian Finance News Stories',
         path: '/',
-        items: feed.data.slice(0, 10).map((item) => ({ name: item.title, path: `/news/${item.slug}`, image: item.imageUrl })),
+        items: items.slice(0, 10).map((item) => ({ name: item.title, path: `/news/${item.slug}`, image: item.imageUrl })),
       }),
     );
   }
@@ -72,13 +133,24 @@ export function Home() {
       <h1 className="sr-only">FORWORD – Indian Finance News, Product Comparisons, Calculators &amp; Offers</h1>
       {list.length > 0 && <Chips items={[t('common.all'), ...list.map((c) => tNewsCategory(c.slug, c.name))]} value={i} onChange={setI} />}
       {first && <FeaturedCard n={first} />}
-      {(!first || (feed.data?.length ?? 0) > 1) && (
-        <FeedList state={{ ...feed, data: first ? feed.data?.slice(1) : feed.data }} emptyText={t('news.categoryEmpty')} />
+      {(!first || items.length > 1) && (
+        <FeedList
+          state={{ data: first ? items.slice(1) : items, loading: loading && items.length === 0, error, reload }}
+          emptyText={t('news.categoryEmpty')}
+        />
       )}
-      {hasMore && !feed.loading && (
-        <Btn variant="outline" onClick={() => setLimit((prev) => prev + NEWS_PAGE_SIZE)}>
-          Load more stories
-        </Btn>
+      {error && items.length > 0 && (
+        <div className="py-3 text-center text-sm text-slate" role="status">
+          {error}{' '}
+          <button type="button" onClick={reload} className="font-semibold text-pri-dark underline">Retry</button>
+        </div>
+      )}
+      {hasMore && <div ref={sentinelRef} className="h-8 w-full" aria-hidden="true" />}
+      {loading && items.length > 0 && (
+        <p className="py-3 text-center text-xs text-slate" role="status" aria-live="polite">Loading more stories…</p>
+      )}
+      {!hasMore && items.length > 0 && (
+        <p className="py-3 text-center text-xs text-slate">You’re all caught up.</p>
       )}
     </Page>
   );
