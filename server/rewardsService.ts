@@ -38,7 +38,7 @@ export function dailyCheckInCoins(streakDay: number): number {
   const schedule = [2, 4, 6, 12, 24, 48, 96];
   if (!Number.isInteger(streakDay) || streakDay < 1) return 2;
   if (streakDay <= schedule.length) return schedule[streakDay - 1];
-  return 96 * (2 ** (streakDay - schedule.length));
+  return Math.min(2_147_483_647, 96 * (2 ** (streakDay - schedule.length)));
 }
 
 export const roundMoney = (value: number): number => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
