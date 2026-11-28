@@ -510,7 +510,7 @@ BEGIN
     RETURN jsonb_build_object('status', 'already_referred');
   END IF;
 
-  v_referrer_key := left(encode(digest(
+  v_referrer_key := left(encode(extensions.digest(
     'referral:referrer:' || v_referrer_id::text || ':' || p_referee_id::text,
     'sha256'
   ), 'hex'), 48);
