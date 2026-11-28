@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
-import { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession, type VerifiedSession } from './supabaseAdmin.ts';
+import * as supabaseAdminModule from './supabaseAdmin.ts';
+const supabaseAdmin = (supabaseAdminModule as any).default ?? supabaseAdminModule;
+const { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession } = supabaseAdmin as typeof import('./supabaseAdmin.ts');
+type VerifiedSession = import('./supabaseAdmin.ts').VerifiedSession;
 
 export const REWARD_RULES = {
   CHECKIN_COINS: 2,
@@ -640,3 +643,5 @@ export async function rewardsRouteHandler(req: Request, res: Response) {
     return res.status(500).json({ error: 'Rewards service error.' });
   }
 }
+
+export default { rewardsRouteHandler };
