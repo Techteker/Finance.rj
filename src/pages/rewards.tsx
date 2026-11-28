@@ -9,6 +9,14 @@ import { AuthGate, Page } from '../components/layout';
 import { Async, Btn, EmptyState, ErrorState, Field, ListRow, Segmented, SectionHeader, Skeleton } from '../components/ui';
 import { NewsCard } from '../components/cards';
 
+const CHECK_IN_REWARDS = [2, 4, 6, 12, 24, 48, 96];
+function indiaDate(value: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
+}
+function checkInReward(day: number): number {
+  return day <= CHECK_IN_REWARDS.length ? CHECK_IN_REWARDS[Math.max(0, day - 1)] : 96 * (2 ** (day - CHECK_IN_REWARDS.length));
+}
+
 function Gate({ title, children, back = true }: { title: string; children: (uid: string) => ReactNode; back?: boolean }) {
   const { t } = useI18n();
   return (
@@ -26,6 +34,11 @@ function WalletCard({ uid }: { uid: string }) {
   if (w.loading) return <Skeleton rows={1} />;
   if (w.error) return <ErrorState text={w.error} onRetry={w.reload} />;
   const d = w.data!;
+  const today = indiaDate(new Date());
+  const yesterday = indiaDate(new Date(Date.now() - 86_400_000));
+  const checkedInToday = Boolean(d.lastCheckIn && indiaDate(new Date(d.lastCheckIn)) === today);
+  const nextStreak = d.lastCheckIn && indiaDate(new Date(d.lastCheckIn)) === yesterday ? d.streak + 1 : 1;
+  const nextCheckInCoins = checkInReward(nextStreak);
   const checkIn = async () => {
     if (busy) return;
     setBusy(true);
@@ -50,7 +63,7 @@ function WalletCard({ uid }: { uid: string }) {
         <div className="space-y-1.5 rounded-card border border-line p-3.5"><Coins className="text-pri-dark" /><p className="text-lg font-bold">{d.coins ?? 0}</p><p className="text-xs text-slate">{t('rewards.coins')}</p></div>
         <div className="space-y-1.5 rounded-card border border-line p-3.5"><Flame className="text-pri-dark" /><p className="text-lg font-bold">{t('rewards.days', { count: d.streak ?? 0 })}</p><p className="text-xs text-slate">{t('rewards.streak')}</p></div>
       </div>
-      <Btn variant="outline" disabled={busy} onClick={checkIn}>{busy ? t('common.loading') : t('rewards.checkInToday')}</Btn>
+      <div className="space-y-2 rounded-card border border-line p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold text-ink">Daily login reward</p><p className="text-xs text-slate">Day {nextStreak} · 100 coins = ₹1</p></div><p className="text-lg font-bold text-pri-dark">+{nextCheckInCoins} coins</p></div><Btn variant="outline" disabled={busy || checkedInToday} onClick={checkIn}>{busy ? t('common.loading') : checkedInToday ? 'Claimed today' : `Claim +${nextCheckInCoins} coins`}</Btn></div>
     </>
   );
 }
@@ -107,7 +120,7 @@ function ReadEarnBody() {
     setBusyIds((b) => ({ ...b, [id]: true }));
     try {
       const result = await rewardsAction('read', { token: session.token }) as { duplicate?: boolean };
-      toast.show(result.duplicate ? 'This article was already rewarded.' : 'Coins added');
+      toast.show(result.duplicate ? 'This article was already rewarded.' : '+1 coin added');
       setSessions((s) => { const n = { ...s }; delete n[id]; return n; });
       setRemaining((s) => { const n = { ...s }; delete n[id]; return n; });
     } catch (e) { toast.show(formatApiError(e)); }
@@ -115,7 +128,7 @@ function ReadEarnBody() {
   };
   return (
     <Async state={state} empty={<EmptyState title="No stories to read right now" />}>
-      {(items) => <><p className="rounded-card bg-mint p-4 text-sm font-semibold text-pri-dark">Read for at least 20 seconds. Each approved article can earn once.</p>{items.map((n) => <div key={n.$id} className="space-y-1.5"><NewsCard n={n} />{!sessions[n.$id] ? <button type="button" disabled={busyIds[n.$id]} onClick={() => start(n.$id)} className="text-xs font-semibold text-pri-dark disabled:opacity-50">{busyIds[n.$id] ? 'Starting…' : 'Start 20-second read'}</button> : <button type="button" disabled={busyIds[n.$id] || (remaining[n.$id] ?? 0) > 0} onClick={() => claim(n.$id)} className="text-xs font-semibold text-pri-dark disabled:opacity-50">{busyIds[n.$id] ? 'Claiming…' : (remaining[n.$id] ?? 0) > 0 ? 'Read timer: ' + remaining[n.$id] + 's' : 'Claim coins'}</button>}</div>)}</>}
+      {(items) => <><p className="rounded-card bg-mint p-4 text-sm font-semibold text-pri-dark">Read an approved article for 20 seconds to earn 1 coin. Each article can earn once; daily limit: 20 rewarded reads.</p>{items.map((n) => <div key={n.$id} className="space-y-1.5"><NewsCard n={n} />{!sessions[n.$id] ? <button type="button" disabled={busyIds[n.$id]} onClick={() => start(n.$id)} className="text-xs font-semibold text-pri-dark disabled:opacity-50">{busyIds[n.$id] ? 'Starting…' : 'Start 20-second read'}</button> : <button type="button" disabled={busyIds[n.$id] || (remaining[n.$id] ?? 0) > 0} onClick={() => claim(n.$id)} className="text-xs font-semibold text-pri-dark disabled:opacity-50">{busyIds[n.$id] ? 'Claiming…' : (remaining[n.$id] ?? 0) > 0 ? 'Read timer: ' + remaining[n.$id] + 's' : 'Claim coins'}</button>}</div>)}</>}
     </Async>
   );
 }
@@ -236,7 +249,7 @@ function ReferralBody({ uid }: { uid: string }) {
 
   return (
     <>
-      <EmptyState icon="gift" title={t('rewards.inviteFriends')} text="Share your code. You both earn coins when they join." />
+      <EmptyState icon="gift" title={t('rewards.inviteFriends')} text="Invite a new user: both you and your friend receive 1,000 coins (₹10 each) after the referral code is successfully applied." />
       {w.loading ? <Skeleton rows={1} /> : w.error ? <ErrorState text={w.error} onRetry={w.reload} /> : code ? (
         <button onClick={async () => { try { await navigator.clipboard.writeText(code); toast.show('Code copied'); } catch { toast.show('Could not copy code automatically.'); } }} className="w-full rounded-xl border border-dashed border-pri bg-mint py-3 text-base font-bold text-pri-dark">{code}</button>
       ) : (
@@ -244,7 +257,7 @@ function ReferralBody({ uid }: { uid: string }) {
       )}
       <div className="space-y-2.5 rounded-card border border-line p-4">
         <p className="text-sm font-bold text-ink">{t('rewards.haveReferral')}</p>
-        <p className="text-xs text-slate">Enter a friend&apos;s code once to claim your referral welcome bonus.</p>
+        <p className="text-xs text-slate">Enter a friend&apos;s code once. You receive 1,000 coins (₹10); your friend also receives 1,000 coins (₹10).</p>
         <Field label="Referral code" value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} placeholder="e.g. FW1234ABCD" maxLength={14} />
         {msg && <p role="alert" className="text-xs font-medium text-danger">{msg}</p>}
         <Btn variant="outline" disabled={!canApply} onClick={applyCode}>{busy ? t('common.loading') : t('rewards.applyReferral')}</Btn>
