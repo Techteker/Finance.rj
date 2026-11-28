@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
-import { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession, type VerifiedSession } from './supabaseAdmin';
+import { getServerSupabaseConfig, getSupabaseAdmin, verifySupabaseSession, type VerifiedSession } from './supabaseAdmin.js';
 
 export const REWARD_RULES = {
   CHECKIN_COINS: 2,
