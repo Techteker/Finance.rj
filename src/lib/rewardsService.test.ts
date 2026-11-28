@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   handleRewardsAction,
+  dailyCheckInCoins,
   reconcileWalletTotals,
   signPayload,
   type RewardsDbAdapter,
@@ -135,15 +136,19 @@ test('Supabase rewards service enforces check-in idempotency, read duration, ant
   const alice = { userId: 'user-alice-1111', email: 'alice@example.com', name: 'Alice', role: 'user' as const };
   const bob = { userId: 'user-bob-2222', email: 'bob@example.com', name: 'Bob', role: 'user' as const };
 
-  // 1. Check-in credits 5 coins once per day and ignores client balance tampering
+  // 1. Check-in credits the scheduled streak reward once per India calendar day
   const ci1 = await handleRewardsAction(alice, { action: 'check-in', coins: 99999 }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
   assert.equal(ci1.status, 200);
-  assert.equal(ci1.body.coins, 5);
+  assert.equal(ci1.body.coins, 2);
   assert.equal(ci1.body.duplicate, false);
 
   const ci2 = await handleRewardsAction(alice, { action: 'check-in' }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
   assert.equal(ci2.body.duplicate, true);
   assert.equal(ci2.body.coins, 0);
+  m.advanceMs(24 * 60 * 60 * 1000);
+  const ci3 = await handleRewardsAction(alice, { action: 'check-in' }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
+  assert.equal(ci3.body.coins, 4);
+  assert.equal(ci3.body.streak, 2);
 
   // 2. Read rewards block draft articles, premature claims, and cross-user token replay
   const draftStart = await handleRewardsAction(alice, { action: 'start-read', newsId: 'art-draft' }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
@@ -184,7 +189,7 @@ test('Supabase rewards service enforces check-in idempotency, read duration, ant
 
   const bobRef = await handleRewardsAction(bob, { action: 'apply-referral', code: refCode }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
   assert.equal(bobRef.status, 200);
-  assert.equal(bobRef.body.coins, 25);
+  assert.equal(bobRef.body.coins, 1000);
 
   const bobDupRef = await handleRewardsAction(bob, { action: 'apply-referral', code: refCode }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
   assert.equal(bobDupRef.status, 409);
@@ -208,4 +213,9 @@ test('Supabase rewards service enforces check-in idempotency, read duration, ant
 
   const wdDup = await handleRewardsAction(alice, { action: 'withdraw', amount: 100, upiId: 'alice@okaxis', requestId: 'req-ok-1' }, { db: m.db, signingSecret: secret, nowMs: m.getNow(), rateStore });
   assert.equal(wdDup.status, 409);
+});
+
+
+test('daily login reward schedule follows 2, 4, 6, then doubles from 12 onwards', () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9].map(dailyCheckInCoins), [2, 4, 6, 12, 24, 48, 96, 192, 384]);
 });
