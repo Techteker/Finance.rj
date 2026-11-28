@@ -10,6 +10,7 @@ dist
 # Non-frontend / Appwrite CLI & server function code
 scripts/*
 !scripts/generate-sitemaps.mjs
+!scripts/prerender-news.mjs
 functions
 
 # Local tests, browser captures & editor files
